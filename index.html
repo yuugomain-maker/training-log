@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>トレーニングログ（試作版）</title>
+</head>
+<body>
+  <h1>トレーニングログ（試作版）</h1>
+
+  <!-- 入力フォーム -->
+  <form id="log-form">
+    <label>
+      日付：
+      <input type="date" id="date">
+    </label>
+    <br>
+
+    <label>
+      種目：
+      <select id="exercise">
+        <option value="">選択してください</option>
+        <option value="ベンチプレス">ベンチプレス</option>
+        <option value="スクワット">スクワット</option>
+        <option value="デッドリフト">デッドリフト</option>
+        <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
+        <option value="ラットプルダウン">ラットプルダウン</option>
+        <option value="シーテッドロウ">シーテッドロウ</option>
+        <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
+        <option value="ケーブルカール">ケーブルカール</option>
+        <option value="ハンマーカール">ハンマーカール</option>
+        <option value="レッグプレス">レッグプレス</option>
+        <option value="レッグカール">レッグカール</option>
+        <option value="レッグエクステンション">レッグエクステンション</option>
+        <option value="その他">その他</option>
+      </select>
+    </label>
+    <br>
+
+    <label>
+      セット番号：
+      <input type="number" id="setNo" min="1" value="1">
+    </label>
+    <br>
+
+    <label>
+      重量(kg)：
+      <input type="number" id="weight">
+    </label>
+    <br>
+
+    <label>
+      回数：
+      <input type="number" id="reps">
+    </label>
+    <br>
+
+    <label>
+      RPE：
+      <input type="number" id="rpe" step="0.5" min="5" max="10">
+    </label>
+    <br>
+
+    <label>
+      メモ：
+      <input type="text" id="memo" placeholder="フォーム・体調など">
+    </label>
+    <br><br>
+
+    <button type="submit">追加</button>
+  </form>
+
+  <h2>記録一覧</h2>
+  <ul id="log-list"></ul>
+
+  <h2>推定1RMグラフ</h2>
+  <label for="exercise-select">種目を選択：</label>
+  <select id="exercise-select">
+    <option value="">記録がある種目から選択</option>
+  </select>
+
+  <label for="range-select">　期間：</label>
+  <select id="range-select">
+    <option value="all">全期間</option>
+    <option value="30">直近30日</option>
+    <option value="90">直近90日</option>
+  </select>
+
+  <br><br>
+  <canvas id="rmChart" height="200"></canvas>
+
+  <h2>統計</h2>
+  <div id="stats"></div>
+
+  <h2>種目別履歴（最近3回のトレーニング日）</h2>
+  <div id="history"></div>
+
+  <!-- グラフ用ライブラリ Chart.js をCDNから読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- 自分のスクリプト -->
+  <script src="app.js"></script>
+</body>
+</html>
