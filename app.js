@@ -1,3 +1,22 @@
+// === 永続化関連 ==========================
+const STORAGE_KEY = 'trainingLog_v2';     // お好みで名前変更OK
+
+// ローカルストレージから既存データをロード（なければ空配列）
+function loadRecords() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn('loadRecords failed:', e);
+    return [];
+  }
+}
+
+// 変更があったら毎回呼ぶ
+
+// =======================================
+
+
 // 要素の取得
 const form = document.getElementById("log-form");
 const list = document.getElementById("log-list");
@@ -8,8 +27,9 @@ const statsDiv = document.getElementById("stats");
 
 let rmChart = null;
 
-// localStorage から既存ログを読み込み
-let logs = JSON.parse(localStorage.getItem("logs") || "[]");
+// localStorage（STORAGE_KEY）から既存ログを読み込み
+let logs = loadRecords();
+
 
 // ----------------------
 // ユーティリティ
@@ -77,8 +97,9 @@ function getExerciseSessions(exerciseName, rangeValue) {
 // 保存＆再描画
 // ----------------------
 function saveLogs() {
-  localStorage.setItem("logs", JSON.stringify(logs));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
 }
+
 
 function renderAll() {
   renderList();
