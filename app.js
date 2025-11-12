@@ -371,6 +371,8 @@ form.addEventListener("submit", (e) => {
 
   logs.push(newLog);
   saveLogs();
+  saveLogToCloud(newLog); // Firestoreにも保存する
+
 
   // 次セット入力をしやすくする
   document.getElementById("setNo").value = setNo + 1;
