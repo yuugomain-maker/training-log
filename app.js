@@ -1,3 +1,20 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
+  authDomain: "training-log-27407.firebaseapp.com",
+  projectId: "training-log-27407",
+  storageBucket: "training-log-27407.firebasestorage.app",
+  messagingSenderId: "996903584995",
+  appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
+  measurementId: "G-LBHF20MC70"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+
 // === 永続化関連 ==========================
 const STORAGE_KEY = 'trainingLog_v2';     // お好みで名前変更OK
 
@@ -374,6 +391,7 @@ form.addEventListener("submit", (e) => {
   saveLogToCloud(newLog); // Firestoreにも保存する
 
 
+
   // 次セット入力をしやすくする
   document.getElementById("setNo").value = setNo + 1;
   document.getElementById("weight").value = "";
@@ -383,6 +401,19 @@ form.addEventListener("submit", (e) => {
 
   renderAll();
 });
+
+// === Firestore から全データを読み込む =========================
+async function loadLogsFromCloud() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
+    const loadedLogs = querySnapshot.docs.map(doc => doc.data());
+    console.log("✅ Firestoreから読み込み成功:", loadedLogs);
+    return loadedLogs;
+  } catch (e) {
+    console.error("❌ Firestore読み込み失敗:", e);
+    return [];
+  }
+}
 
 // グラフ用セレクト変更時
 exerciseSelectForGraph.addEventListener("change", () => {
@@ -404,4 +435,15 @@ rangeSelect.addEventListener("change", () => {
 });
 
 // 初期表示
-renderAll();
+// Firestoreからログを読み込んで表示
+(async () => {
+  const cloudLogs = await loadLogsFromCloud();
+  if (cloudLogs.length > 0) {
+    logs = cloudLogs;
+    saveLogs(); // ローカルにも同期
+    console.log(`🔥 ${cloudLogs.length}件のログをFirestoreから読み込みました`);
+  } else {
+    console.log("ℹ️ Firestoreにログがありません（ローカルのみ表示）");
+  }
+  renderAll();
+})();
