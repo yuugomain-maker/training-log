@@ -2,21 +2,23 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // =====================
-// Google Sheets 連携
+// Google Sheets 連携設定（★一番上に置く）
 // =====================
 
-// ★ここにあなたの Web アプリ URL をそのまま貼る
-const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/xxxxxxxxxxxxxxxx/exec";
+// ★ここを自分の Web アプリ URL に置き換える
+const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
 
+// ログ1件をスプレッドシートに送信
 function sendLogToSheet(log) {
-  if (!SHEET_WEBHOOK_URL) return;   // 念のため
+  if (!SHEET_WEBHOOK_URL) {
+    console.warn("SHEET_WEBHOOK_URL が設定されていません");
+    return;
+  }
 
   fetch(SHEET_WEBHOOK_URL, {
     method: "POST",
-    mode: "no-cors", // レスポンスは見えないが送信はされる
-    headers: {
-      "Content-Type": "application/json",
-    },
+    mode: "no-cors",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(log),
   })
     .then(() => {
@@ -26,6 +28,12 @@ function sendLogToSheet(log) {
       console.error("⚠ シートへの書き出し失敗:", err);
     });
 }
+
+// ==== ここから下に、Firebase やログ処理の既存コードが続く ====
+// import {...} from "firebase/..."
+// const firebaseConfig = {...}
+// const app = initializeApp(firebaseConfig);
+// ...
 
 
 // 変更があったら毎回呼ぶ
@@ -395,34 +403,14 @@ form.addEventListener("submit", (e) => {
     weight,
     reps,
     rpe: rpe || null,
-    memo: memo || ""
+    memo: memo || "",
   };
 
-
+  // ★ ローカル / Firestore / シートの3か所に保存
   logs.push(newLog);
-  saveLogs();           // ローカル保存
-  saveLogToCloud(newLog);  // Firestore 保存
-  sendLogToSheet(newLog);  // ★ シートへ送信
-
-
-// ★ここにコピーした Apps Script の URL を貼る
-const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
-
-async function sendLogToSheet(log) {
-  try {
-    await fetch(SHEET_WEBHOOK_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(log),
-    });
-    console.log("シートへ書き出し成功");
-  } catch (e) {
-    console.error("シートへの書き出し失敗", e);
-  }
-}
-
+  saveLogs();            // localStorage
+  saveLogToCloud(newLog); // Firestore
+  sendLogToSheet(newLog); // Google スプレッドシート
 
   // 次セット入力をしやすくする
   document.getElementById("setNo").value = setNo + 1;
@@ -433,6 +421,7 @@ async function sendLogToSheet(log) {
 
   renderAll();
 });
+
 
 // === Firestore から全データを読み込む =========================
 async function loadLogsFromCloud() {
