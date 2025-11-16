@@ -1,33 +1,32 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
-  authDomain: "training-log-27407.firebaseapp.com",
-  projectId: "training-log-27407",
-  storageBucket: "training-log-27407.firebasestorage.app",
-  messagingSenderId: "996903584995",
-  appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
-  measurementId: "G-LBHF20MC70"
-};
+// =====================
+// Google Sheets 連携
+// =====================
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// ★ここにあなたの Web アプリ URL をそのまま貼る
+const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/xxxxxxxxxxxxxxxx/exec";
 
+function sendLogToSheet(log) {
+  if (!SHEET_WEBHOOK_URL) return;   // 念のため
 
-// === 永続化関連 ==========================
-const STORAGE_KEY = 'trainingLog_v2';     // お好みで名前変更OK
-
-// ローカルストレージから既存データをロード（なければ空配列）
-function loadRecords() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.warn('loadRecords failed:', e);
-    return [];
-  }
+  fetch(SHEET_WEBHOOK_URL, {
+    method: "POST",
+    mode: "no-cors", // レスポンスは見えないが送信はされる
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(log),
+  })
+    .then(() => {
+      console.log("📄 シートへ送信完了");
+    })
+    .catch((err) => {
+      console.error("⚠ シートへの書き出し失敗:", err);
+    });
 }
+
 
 // 変更があったら毎回呼ぶ
 
@@ -399,10 +398,11 @@ form.addEventListener("submit", (e) => {
     memo: memo || ""
   };
 
-logs.push(newLog);
-saveLogs();
-saveLogToCloud(newLog);  // Firestore
-sendLogToSheet(newLog);  // Google Sheets（追加）
+
+  logs.push(newLog);
+  saveLogs();           // ローカル保存
+  saveLogToCloud(newLog);  // Firestore 保存
+  sendLogToSheet(newLog);  // ★ シートへ送信
 
 
 // ★ここにコピーした Apps Script の URL を貼る
