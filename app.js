@@ -399,10 +399,29 @@ form.addEventListener("submit", (e) => {
     memo: memo || ""
   };
 
-  logs.push(newLog);
-  saveLogs();
-  saveLogToCloud(newLog); // Firestoreにも保存する
+logs.push(newLog);
+saveLogs();
+saveLogToCloud(newLog);  // Firestore
+sendLogToSheet(newLog);  // Google Sheets（追加）
 
+
+// ★ここにコピーした Apps Script の URL を貼る
+const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
+
+async function sendLogToSheet(log) {
+  try {
+    await fetch(SHEET_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(log),
+    });
+    console.log("シートへ書き出し成功");
+  } catch (e) {
+    console.error("シートへの書き出し失敗", e);
+  }
+}
 
 
   // 次セット入力をしやすくする
