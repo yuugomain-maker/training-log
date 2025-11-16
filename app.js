@@ -357,6 +357,19 @@ function renderHistory(exerciseName, rangeValue) {
   }
 }
 
+// ==============================
+// Firestore に 1件のログを保存する
+// ==============================
+async function saveLogToCloud(log) {
+  try {
+    await addDoc(collection(db, "trainingLogs"), log);
+    console.log("🔥 Firestoreに保存成功:", log);
+  } catch (e) {
+    console.error("❌ Firestore 保存失敗:", e);
+  }
+}
+
+
 // ----------------------
 // フォーム送信
 // ----------------------
