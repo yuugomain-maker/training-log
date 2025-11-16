@@ -1,12 +1,37 @@
+// ==============================
+// Firebase / Firestore 読み込み
+// ==============================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// =====================
-// Google Sheets 連携設定（★一番上に置く）
-// =====================
+// ==============================
+// Firebase 初期化
+// ==============================
+const firebaseConfig = {
+  apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
+  authDomain: "training-log-27407.firebaseapp.com",
+  projectId: "training-log-27407",
+  storageBucket: "training-log-27407.firebasestorage.app",
+  messagingSenderId: "996903584995",
+  appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
+  measurementId: "G-LBHF20MC70",
+};
 
-// ★ここを自分の Web アプリ URL に置き換える
-const SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ==============================
+// Google Sheets 連携設定
+// ==============================
+
+// ★ここを自分の Web アプリ URL に置き換える（すでにあなたのURLを設定済み）
+const SHEET_WEBHOOK_URL =
+  "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
 
 // ログ1件をスプレッドシートに送信
 function sendLogToSheet(log) {
@@ -29,19 +54,30 @@ function sendLogToSheet(log) {
     });
 }
 
-// ==== ここから下に、Firebase やログ処理の既存コードが続く ====
-// import {...} from "firebase/..."
-// const firebaseConfig = {...}
-// const app = initializeApp(firebaseConfig);
-// ...
+// ==============================
+// ローカルストレージ関連
+// ==============================
+const STORAGE_KEY = "trainingLog_v2"; // お好みで名前変更OK
 
+// ローカルストレージから既存データをロード（なければ空配列）
+function loadRecords() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn("loadRecords failed:", e);
+    return [];
+  }
+}
 
-// 変更があったら毎回呼ぶ
+// ローカルストレージへ保存
+function saveLogs() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+}
 
-// =======================================
-
-
-// 要素の取得
+// ==============================
+// DOM 要素の取得
+// ==============================
 const form = document.getElementById("log-form");
 const list = document.getElementById("log-list");
 const exerciseSelectForGraph = document.getElementById("exercise-select");
@@ -51,17 +87,16 @@ const statsDiv = document.getElementById("stats");
 
 let rmChart = null;
 
-// localStorage（STORAGE_KEY）から既存ログを読み込み
+// ローカルストレージから既存ログを読み込み
 let logs = loadRecords();
-
 
 // ----------------------
 // ユーティリティ
 // ----------------------
 function estimate1RM(weight, reps) {
   if (!weight || !reps) return null;
-  const rm = weight * (1 + reps / 30);  // Epleyの式
-  return Math.round(rm * 10) / 10;      // 小数1桁で丸める
+  const rm = weight * (1 + reps / 30); // Epleyの式
+  return Math.round(rm * 10) / 10; // 小数1桁で丸める
 }
 
 // 期間フィルタ（all / 30 / 90 日）
@@ -82,26 +117,28 @@ function isWithinRange(dateStr, rangeValue) {
 // 種目ごとのセッション（=トレーニング日）一覧を取得
 function getExerciseSessions(exerciseName, rangeValue) {
   const filteredLogs = logs.filter(
-    log => log.exercise === exerciseName && isWithinRange(log.date, rangeValue)
+    (log) => log.exercise === exerciseName && isWithinRange(log.date, rangeValue),
   );
 
   if (filteredLogs.length === 0) return [];
 
   // 日付ごとにグループ化
   const map = {};
-  filteredLogs.forEach(log => {
+  filteredLogs.forEach((log) => {
     if (!map[log.date]) map[log.date] = [];
     map[log.date].push(log);
   });
 
   const dates = Object.keys(map).sort(); // 昇順（古い→新しい）
 
-  return dates.map(date => {
-    const sets = map[date].slice().sort((a, b) => (a.setNo || 0) - (b.setNo || 0));
+  return dates.map((date) => {
+    const sets = map[date]
+      .slice()
+      .sort((a, b) => (a.setNo || 0) - (b.setNo || 0));
 
     // トップセット（重量優先・同じなら回数多い方）
     let topSet = sets[0];
-    sets.forEach(s => {
+    sets.forEach((s) => {
       if (
         s.weight > topSet.weight ||
         (s.weight === topSet.weight && s.reps > topSet.reps)
@@ -120,11 +157,6 @@ function getExerciseSessions(exerciseName, rangeValue) {
 // ----------------------
 // 保存＆再描画
 // ----------------------
-function saveLogs() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-}
-
-
 function renderAll() {
   renderList();
   updateExerciseOptionsForGraph();
@@ -178,9 +210,9 @@ function renderList() {
 // グラフ用セレクト更新
 // ----------------------
 function updateExerciseOptionsForGraph() {
-  const exercises = [...new Set(
-    logs.map(log => log.exercise).filter(name => !!name)
-  )];
+  const exercises = [
+    ...new Set(logs.map((log) => log.exercise).filter((name) => !!name)),
+  ];
 
   exerciseSelectForGraph.innerHTML = "";
 
@@ -192,7 +224,7 @@ function updateExerciseOptionsForGraph() {
     return;
   }
 
-  exercises.forEach(name => {
+  exercises.forEach((name) => {
     const option = document.createElement("option");
     option.value = name;
     option.textContent = name;
@@ -211,15 +243,15 @@ function updateRmChart(exerciseName, rangeValue) {
   if (!exerciseName) return;
 
   const sessions = getExerciseSessions(exerciseName, rangeValue);
-  const logsForChart = sessions.flatMap(s =>
-    s.sets.map(set => ({
+  const logsForChart = sessions.flatMap((s) =>
+    s.sets.map((set) => ({
       label: `${s.date} (${set.setNo}セット目)`,
-      rm: estimate1RM(set.weight, set.reps)
-    }))
+      rm: estimate1RM(set.weight, set.reps),
+    })),
   );
 
-  const labels = logsForChart.map(x => x.label);
-  const data = logsForChart.map(x => x.rm);
+  const labels = logsForChart.map((x) => x.label);
+  const data = logsForChart.map((x) => x.rm);
 
   const ctx = document.getElementById("rmChart").getContext("2d");
 
@@ -231,12 +263,14 @@ function updateRmChart(exerciseName, rangeValue) {
     type: "line",
     data: {
       labels,
-      datasets: [{
-        label: `${exerciseName} の推定1RM`,
-        data,
-        tension: 0.2,
-        pointRadius: 3,
-      }]
+      datasets: [
+        {
+          label: `${exerciseName} の推定1RM`,
+          data,
+          tension: 0.2,
+          pointRadius: 3,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -244,17 +278,17 @@ function updateRmChart(exerciseName, rangeValue) {
         y: {
           title: {
             display: true,
-            text: "推定1RM (kg)"
-          }
+            text: "推定1RM (kg)",
+          },
         },
         x: {
           title: {
             display: true,
-            text: "日付 / セット"
-          }
-        }
-      }
-    }
+            text: "日付 / セット",
+          },
+        },
+      },
+    },
   });
 }
 
@@ -275,13 +309,14 @@ function renderStats(exerciseName, rangeValue) {
     return;
   }
 
-  const max1RM = Math.max(...sessions.map(s => s.top1RM));
-  const avg1RM = Math.round(
-    (sessions.reduce((sum, s) => sum + s.top1RM, 0) / sessions.length) * 10
-  ) / 10;
+  const max1RM = Math.max(...sessions.map((s) => s.top1RM));
+  const avg1RM =
+    Math.round(
+      (sessions.reduce((sum, s) => sum + s.top1RM, 0) / sessions.length) * 10,
+    ) / 10;
 
   const avgVolume = Math.round(
-    sessions.reduce((sum, s) => sum + s.volume, 0) / sessions.length
+    sessions.reduce((sum, s) => sum + s.volume, 0) / sessions.length,
   );
 
   const p1 = document.createElement("p");
@@ -333,7 +368,7 @@ function renderHistory(exerciseName, rangeValue) {
 
     // セットごとの一覧
     const ul = document.createElement("ul");
-    s.sets.forEach(log => {
+    s.sets.forEach((log) => {
       let text = `${log.setNo}セット目: ${log.weight}kg × ${log.reps}回`;
       if (log.rpe) text += ` (RPE ${log.rpe})`;
       if (log.memo) text += ` - ${log.memo}`;
@@ -376,6 +411,20 @@ async function saveLogToCloud(log) {
   }
 }
 
+// ==============================
+// Firestore から全データを読み込む
+// ==============================
+async function loadLogsFromCloud() {
+  try {
+    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
+    const loadedLogs = querySnapshot.docs.map((doc) => doc.data());
+    console.log("✅ Firestoreから読み込み成功:", loadedLogs);
+    return loadedLogs;
+  } catch (e) {
+    console.error("❌ Firestore読み込み失敗:", e);
+    return [];
+  }
+}
 
 // ----------------------
 // フォーム送信
@@ -406,7 +455,7 @@ form.addEventListener("submit", (e) => {
     memo: memo || "",
   };
 
-  // ★ ローカル / Firestore / シートの3か所に保存
+  // ローカル / Firestore / シートの3か所に保存
   logs.push(newLog);
   saveLogs();            // localStorage
   saveLogToCloud(newLog); // Firestore
@@ -422,62 +471,9 @@ form.addEventListener("submit", (e) => {
   renderAll();
 });
 
-// === ローカルストレージ関連 ==========================
-const STORAGE_KEY = "trainingLog_v2";  // お好みで名前変更OK
-
-// ローカルストレージから既存データをロード（なければ空配列）
-function loadRecords() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.warn("loadRecords failed:", e);
-    return [];
-  }
-}
-
-// 変更があったら毎回呼ぶ
-function saveLogs() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-}
-// =====================================================
-
-
-
-// === Firestore から全データを読み込む =========================
-async function loadLogsFromCloud() {
-  try {
-    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
-    const loadedLogs = querySnapshot.docs.map(doc => doc.data());
-    console.log("✅ Firestoreから読み込み成功:", loadedLogs);
-    return loadedLogs;
-  } catch (e) {
-    console.error("❌ Firestore読み込み失敗:", e);
-    return [];
-  }
-}
-
-// グラフ用セレクト変更時
-exerciseSelectForGraph.addEventListener("change", () => {
-  const ex = exerciseSelectForGraph.value;
-  const range = rangeSelect.value;
-  if (ex) {
-    updateRmChart(ex, range);
-    renderStats(ex, range);
-    renderHistory(ex, range);
-  } else {
-    statsDiv.textContent = "種目を選択すると統計が表示されます。";
-    renderHistory("", range);
-  }
-});
-
-// 期間変更時
-rangeSelect.addEventListener("change", () => {
-  renderAll();
-});
-
-// 初期表示
-// Firestoreからログを読み込んで表示
+// ----------------------
+// 初期表示：Firestore から読み込み → ローカルにも同期
+// ----------------------
 (async () => {
   const cloudLogs = await loadLogsFromCloud();
   if (cloudLogs.length > 0) {
