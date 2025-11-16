@@ -422,6 +422,27 @@ form.addEventListener("submit", (e) => {
   renderAll();
 });
 
+// === ローカルストレージ関連 ==========================
+const STORAGE_KEY = "trainingLog_v2";  // お好みで名前変更OK
+
+// ローカルストレージから既存データをロード（なければ空配列）
+function loadRecords() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.warn("loadRecords failed:", e);
+    return [];
+  }
+}
+
+// 変更があったら毎回呼ぶ
+function saveLogs() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+}
+// =====================================================
+
+
 
 // === Firestore から全データを読み込む =========================
 async function loadLogsFromCloud() {
