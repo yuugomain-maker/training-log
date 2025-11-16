@@ -1,11 +1,47 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // --- あなたのFirebase設定をここに貼り付け ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
+    authDomain: "training-log-27407.firebaseapp.com",
+    projectId: "training-log-27407",
+    storageBucket: "training-log-27407.firebasestorage.app",
+    messagingSenderId: "996903584995",
+    appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
+    measurementId: "G-LBHF20MC70"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Firestore書き込み関数（使い方は下で説明）
+  export async function saveLogToCloud(log) {
+    try {
+      await addDoc(collection(db, "trainingLogs"), log);
+      console.log("Cloud保存成功:", log);
+    } catch (e) {
+      console.error("Cloud保存失敗:", e);
+    }
+  }
+
+  // Firestore読み込み関数（全データを取得）
+  export async function loadLogsFromCloud() {
+    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
+    return querySnapshot.docs.map(doc => doc.data());
+  }
+</script>
+
   <meta charset="UTF-8">
-  <title>トレーニングログ v2</title>
+  <title>トレーニングログ（試作版）</title>
+  
 </head>
 <body>
-  <h1>トレーニングログ v2</h1>
+  <h1>トレーニングログ（試作版）</h1>
 
   <!-- 入力フォーム -->
   <form id="log-form">
@@ -94,10 +130,11 @@
   <h2>種目別履歴（最近3回のトレーニング日）</h2>
   <div id="history"></div>
 
-  <!-- グラフ用ライブラリ Chart.js をCDNから読み込み -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- 自分のスクリプト -->
-  <script src="app.js"></script>
+<!-- グラフ用ライブラリ Chart.js（これは通常のscriptでOK） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- 自分のスクリプト：必ず module で -->
+<script type="module" src="./app.js"></script>
 </body>
 </html>
 
