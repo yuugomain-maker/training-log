@@ -40,7 +40,7 @@
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.1fr);
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
       gap: 16px;
     }
 
@@ -89,9 +89,17 @@
       color: #6b7280;
     }
 
+    .date-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .date-row input[type="date"] {
+      flex: 1;
+    }
+
     button[type="submit"] {
-      margin-top: 8px;
-      width: 100%;
       padding: 8px 10px;
       border-radius: 999px;
       border: none;
@@ -112,6 +120,31 @@
     button[type="submit"]:active {
       transform: translateY(0);
       box-shadow: none;
+    }
+
+    .btn-secondary {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-secondary:hover {
+      background: #0b1120;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .button-row button[type="submit"] {
+      flex: 1;
     }
 
     .hint {
@@ -201,43 +234,83 @@
       font-size: 0.8rem;
       color: #9ca3af;
     }
+
+    #date-session-summary {
+      font-size: 0.85rem;
+      margin-top: 4px;
+    }
+
+    #date-session-summary h3 {
+      font-size: 0.95rem;
+      margin: 8px 0 4px;
+    }
+
+    #date-session-summary ul {
+      margin: 0 0 4px 1rem;
+      padding-left: 0;
+      font-size: 0.85rem;
+    }
+
+    #date-session-summary li {
+      margin-bottom: 2px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>トレーニングログ（試作版）</h1>
-      <p class="subtitle">日付・種目・セット・重量・回数・RPE・メモを記録し、localStorage / Firestore / Google スプレッドシートに保存</p>
+      <p class="subtitle">日付・体重・種目・セット・重量・回数・RPE・メモを記録し、localStorage / Firestore / Google スプレッドシートに保存</p>
     </header>
 
     <main>
-      <!-- 左カラム：入力フォーム + 記録一覧 -->
+      <!-- 左カラム：入力フォーム + 種目別履歴 + グラフ -->
       <div>
         <section>
           <h2>入力フォーム</h2>
           <form id="log-form">
             <label>
               日付
-              <input type="date" id="date" />
+              <div class="date-row">
+                <input type="date" id="date" />
+                <button type="button" id="today-btn" class="btn-secondary">本日</button>
+              </div>
+            </label>
+
+            <label>
+              体重 (kg)
+              <input type="number" id="bodyWeight" inputmode="decimal" />
             </label>
 
             <label>
               種目
               <select id="exercise">
                 <option value="">選択してください</option>
-                <option value="ベンチプレス">ベンチプレス</option>
-                <option value="スクワット">スクワット</option>
-                <option value="デッドリフト">デッドリフト</option>
-                <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
-                <option value="ラットプルダウン">ラットプルダウン</option>
-                <option value="シーテッドロウ">シーテッドロウ</option>
-                <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
-                <option value="ケーブルカール">ケーブルカール</option>
-                <option value="ハンマーカール">ハンマーカール</option>
-                <option value="レッグプレス">レッグプレス</option>
-                <option value="レッグカール">レッグカール</option>
-                <option value="レッグエクステンション">レッグエクステンション</option>
-                <option value="その他">その他</option>
+                <optgroup label="胸">
+                  <option value="ベンチプレス">ベンチプレス</option>
+                  <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
+                </optgroup>
+                <optgroup label="肩">
+                  <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
+                </optgroup>
+                <optgroup label="背中">
+                  <option value="ラットプルダウン">ラットプルダウン</option>
+                  <option value="シーテッドロウ">シーテッドロウ</option>
+                </optgroup>
+                <optgroup label="脚・下半身">
+                  <option value="スクワット">スクワット</option>
+                  <option value="デッドリフト">デッドリフト</option>
+                  <option value="レッグプレス">レッグプレス</option>
+                  <option value="レッグカール">レッグカール</option>
+                  <option value="レッグエクステンション">レッグエクステンション</option>
+                </optgroup>
+                <optgroup label="腕">
+                  <option value="ケーブルカール">ケーブルカール</option>
+                  <option value="ハンマーカール">ハンマーカール</option>
+                </optgroup>
+                <optgroup label="その他">
+                  <option value="その他">その他</option>
+                </optgroup>
               </select>
             </label>
 
@@ -266,20 +339,19 @@
               <input type="text" id="memo" placeholder="フォーム・体調・補助あり など" />
             </label>
 
-            <button type="submit">このセットを追加</button>
-            <p class="hint">※ 同じ日・同じ種目のときはセット番号だけインクリメントして連続で登録できます。</p>
+            <div class="button-row">
+              <button type="submit">このセットを追加</button>
+              <button type="button" id="copy-first-set-btn" class="btn-secondary">1セット目をコピー</button>
+            </div>
+            <p class="hint">※ 同じ日・同じ種目のときは、1セット目を登録後「1セット目をコピー」で 2〜4 セット目を素早く追加できます。</p>
           </form>
         </section>
 
         <section>
-          <h2>記録一覧</h2>
-          <p class="hint">※ 一覧の行をクリックすると、その記録を削除できます。</p>
-          <ul id="log-list"></ul>
+          <h2>種目別履歴（最近 3 回のトレーニング日）</h2>
+          <div id="history">種目を選択すると履歴が表示されます。</div>
         </section>
-      </div>
 
-      <!-- 右カラム：グラフ + 統計 + 履歴 -->
-      <div>
         <section>
           <h2>推定 1RM グラフ</h2>
           <div class="chart-controls">
@@ -302,6 +374,21 @@
 
           <canvas id="rmChart" height="200"></canvas>
         </section>
+      </div>
+
+      <!-- 右カラム：トレ日別一覧 + 統計 + 記録一覧 -->
+      <div>
+        <section>
+          <h2>トレーニング日別一覧</h2>
+          <p class="hint">前回のトレーニング日などを選ぶと、その日に行った全種目とセットが表示されます。</p>
+          <label>
+            トレーニング日：
+            <select id="date-session-select">
+              <option value="">日付を選択</option>
+            </select>
+          </label>
+          <div id="date-session-summary"></div>
+        </section>
 
         <section>
           <h2>統計</h2>
@@ -309,8 +396,9 @@
         </section>
 
         <section>
-          <h2>種目別履歴（最近 3 回のトレーニング日）</h2>
-          <div id="history">種目を選択すると履歴が表示されます。</div>
+          <h2>記録一覧</h2>
+          <p class="hint">※ 一覧の行をクリックすると、その記録を削除できます。</p>
+          <ul id="log-list"></ul>
         </section>
       </div>
     </main>
