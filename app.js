@@ -62,6 +62,7 @@ function sendLogToSheet(log) {
 /**
  * @typedef {Object} TrainingLog
  * @property {string} date - YYYY-MM-DD
+ * @property {number | null} [bodyWeight]
  * @property {string} exercise
  * @property {number} setNo
  * @property {number} weight
@@ -115,6 +116,10 @@ const exerciseSelectForGraph = document.getElementById("exercise-select");
 const rangeSelect = document.getElementById("range-select");
 const historyDiv = document.getElementById("history");
 const statsDiv = document.getElementById("stats");
+const todayBtn = document.getElementById("today-btn");
+const copyFirstSetBtn = document.getElementById("copy-first-set-btn");
+const dateSessionSelect = document.getElementById("date-session-select");
+const dateSessionSummary = document.getElementById("date-session-summary");
 
 let rmChart = null;
 
@@ -192,18 +197,20 @@ function getExerciseSessions(exerciseName, rangeValue) {
   });
 }
 
-/**
- * 今日の日付を date input に自動セット
- */
+/** 今日の日付文字列 (YYYY-MM-DD) を取得 */
+function getTodayString() {
+  const today = new Date();
+  return today.toISOString().slice(0, 10);
+}
+
+/** 今日の日付を date input に自動セット */
 function setDefaultDate() {
   const dateInput = /** @type {HTMLInputElement | null} */ (
     document.getElementById("date")
   );
   if (!dateInput) return;
   if (!dateInput.value) {
-    const today = new Date();
-    const yyyyMmDd = today.toISOString().slice(0, 10);
-    dateInput.value = yyyyMmDd;
+    dateInput.value = getTodayString();
   }
 }
 
@@ -213,9 +220,10 @@ function setDefaultDate() {
 function renderAll() {
   renderList();
   updateExerciseOptionsForGraph();
+  updateTrainingDateOptions();
 
-  const ex = exerciseSelectForGraph.value;
-  const range = rangeSelect.value;
+  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
 
   if (ex) {
     updateRmChart(ex, range);
@@ -228,6 +236,15 @@ function renderAll() {
     }
     statsDiv.textContent = "種目を選択すると統計が表示されます。";
     historyDiv.textContent = "種目を選択すると履歴が表示されます。";
+  }
+
+  const selectedDate = /** @type {HTMLSelectElement} */ (
+    dateSessionSelect
+  ).value;
+  if (selectedDate) {
+    renderSessionByDate(selectedDate);
+  } else {
+    dateSessionSummary.textContent = "記録がある日付から選択してください。";
   }
 }
 
@@ -243,7 +260,7 @@ function renderList() {
     return a.date.localeCompare(b.date);
   });
 
-  sorted.forEach((log, index) => {
+  sorted.forEach((log) => {
     const li = document.createElement("li");
 
     const main = document.createElement("span");
@@ -252,6 +269,9 @@ function renderList() {
     let text = `${log.date} / ${log.exercise} / ${log.setNo}セット目 / ${log.weight}kg × ${log.reps}回`;
     if (log.rpe) {
       text += ` (RPE ${log.rpe})`;
+    }
+    if (log.bodyWeight != null) {
+      text += ` / 体重 ${log.bodyWeight}kg`;
     }
     if (log.memo) {
       text += ` - ${log.memo}`;
@@ -268,7 +288,6 @@ function renderList() {
     // クリックで削除
     li.addEventListener("click", () => {
       if (confirm("この記録を削除しますか？")) {
-        // sorted の index から元の logs の index を特定
         const originalIndex = logs.findIndex(
           (l) =>
             l.date === log.date &&
@@ -277,7 +296,8 @@ function renderList() {
             l.weight === log.weight &&
             l.reps === log.reps &&
             l.rpe === log.rpe &&
-            l.memo === log.memo,
+            l.memo === log.memo &&
+            (l.bodyWeight ?? null) === (log.bodyWeight ?? null),
         );
         if (originalIndex !== -1) {
           logs.splice(originalIndex, 1);
@@ -299,7 +319,9 @@ function updateExerciseOptionsForGraph() {
     ...new Set(logs.map((log) => log.exercise).filter((name) => !!name)),
   ];
 
-  const current = exerciseSelectForGraph.value;
+  const current = /** @type {HTMLSelectElement} */ (
+    exerciseSelectForGraph
+  ).value;
   exerciseSelectForGraph.innerHTML = "";
 
   if (exercises.length === 0) {
@@ -322,6 +344,38 @@ function updateExerciseOptionsForGraph() {
     exerciseSelectForGraph.value = current;
   } else if (!exerciseSelectForGraph.value && exercises.length > 0) {
     exerciseSelectForGraph.value = exercises[0];
+  }
+}
+
+// ----------------------
+// トレーニング日セレクト更新
+// ----------------------
+function updateTrainingDateOptions() {
+  const dates = [
+    ...new Set(logs.map((log) => log.date).filter((d) => !!d)),
+  ].sort((a, b) => b.localeCompare(a)); // 新しい日付から
+
+  const selectEl = /** @type {HTMLSelectElement} */ (dateSessionSelect);
+  const current = selectEl.value;
+
+  selectEl.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = dates.length ? "日付を選択" : "まだ記録がありません";
+  selectEl.appendChild(placeholder);
+
+  dates.forEach((d) => {
+    const option = document.createElement("option");
+    option.value = d;
+    option.textContent = d;
+    selectEl.appendChild(option);
+  });
+
+  if (current && dates.includes(current)) {
+    selectEl.value = current;
+  } else if (!current && dates.length > 0) {
+    // デフォルトで最新の日付を選択
+    selectEl.value = dates[0];
   }
 }
 
@@ -495,6 +549,65 @@ function renderHistory(exerciseName, rangeValue) {
   }
 }
 
+// ----------------------
+// トレーニング日別の一覧表示
+// ----------------------
+function renderSessionByDate(dateStr) {
+  dateSessionSummary.innerHTML = "";
+  if (!dateStr) {
+    dateSessionSummary.textContent = "記録がある日付から選択してください。";
+    return;
+  }
+
+  const logsForDate = logs
+    .filter((l) => l.date === dateStr)
+    .sort((a, b) => {
+      if (a.exercise === b.exercise) return (a.setNo || 0) - (b.setNo || 0);
+      return a.exercise.localeCompare(b.exercise);
+    });
+
+  if (logsForDate.length === 0) {
+    dateSessionSummary.textContent = "この日付の記録はありません。";
+    return;
+  }
+
+  const bwLog = logsForDate.find((l) => l.bodyWeight != null);
+  if (bwLog && bwLog.bodyWeight != null) {
+    const pBw = document.createElement("p");
+    pBw.textContent = `体重: ${bwLog.bodyWeight} kg`;
+    dateSessionSummary.appendChild(pBw);
+  }
+
+  // 種目ごとにグルーピング
+  const map = /** @type {Record<string, TrainingLog[]>} */ ({});
+  logsForDate.forEach((log) => {
+    if (!map[log.exercise]) map[log.exercise] = [];
+    map[log.exercise].push(log);
+  });
+
+  Object.keys(map)
+    .sort()
+    .forEach((exercise) => {
+      const h3 = document.createElement("h3");
+      h3.textContent = exercise;
+      dateSessionSummary.appendChild(h3);
+
+      const ul = document.createElement("ul");
+      map[exercise]
+        .slice()
+        .sort((a, b) => (a.setNo || 0) - (b.setNo || 0))
+        .forEach((log) => {
+          let text = `${log.setNo}セット目: ${log.weight}kg × ${log.reps}回`;
+          if (log.rpe) text += ` (RPE ${log.rpe})`;
+          if (log.memo) text += ` - ${log.memo}`;
+          const li = document.createElement("li");
+          li.textContent = text;
+          ul.appendChild(li);
+        });
+      dateSessionSummary.appendChild(ul);
+    });
+}
+
 // ==============================
 // Firestore に 1 件のログを保存する
 // ==============================
@@ -531,6 +644,9 @@ form.addEventListener("submit", (e) => {
   const date = /** @type {HTMLInputElement} */ (
     document.getElementById("date")
   ).value;
+  const bodyWeightRaw = /** @type {HTMLInputElement} */ (
+    document.getElementById("bodyWeight")
+  ).value;
   const exercise = /** @type {HTMLSelectElement} */ (
     document.getElementById("exercise")
   ).value;
@@ -555,9 +671,12 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
+  const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
+
   /** @type {TrainingLog} */
   const newLog = {
     date,
+    bodyWeight,
     exercise,
     setNo,
     weight,
@@ -572,7 +691,7 @@ form.addEventListener("submit", (e) => {
   saveLogToCloud(newLog); // Firestore
   sendLogToSheet(newLog); // Google スプレッドシート
 
-  // 次セット入力をしやすくする
+  // 次セット入力をしやすくする（体重はそのまま残す）
   const setNoInput = /** @type {HTMLInputElement} */ (
     document.getElementById("setNo")
   );
@@ -591,11 +710,84 @@ form.addEventListener("submit", (e) => {
 });
 
 // ----------------------
+// ボタン類のイベント
+// ----------------------
+if (todayBtn) {
+  todayBtn.addEventListener("click", () => {
+    const dateInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("date")
+    );
+    dateInput.value = getTodayString();
+  });
+}
+
+if (copyFirstSetBtn) {
+  copyFirstSetBtn.addEventListener("click", () => {
+    const dateInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("date")
+    );
+    const exerciseInput = /** @type {HTMLSelectElement} */ (
+      document.getElementById("exercise")
+    );
+    const setNoInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("setNo")
+    );
+    const weightInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("weight")
+    );
+    const repsInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("reps")
+    );
+    const rpeInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("rpe")
+    );
+    const memoInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("memo")
+    );
+    const bwInput = /** @type {HTMLInputElement} */ (
+      document.getElementById("bodyWeight")
+    );
+
+    const date = dateInput.value;
+    const exercise = exerciseInput.value;
+
+    if (!date || !exercise) {
+      alert("先に日付と種目を選択し、1セット目を登録してください。");
+      return;
+    }
+
+    const sameLogs = logs.filter(
+      (l) => l.date === date && l.exercise === exercise,
+    );
+    if (sameLogs.length === 0) {
+      alert("この日付・種目の記録がまだありません。まず 1 セット目を追加してください。");
+      return;
+    }
+
+    const firstSet =
+      sameLogs.find((l) => l.setNo === 1) ||
+      sameLogs.reduce((min, l) => (l.setNo < min.setNo ? l : min), sameLogs[0]);
+
+    const nextSetNo =
+      sameLogs.reduce((max, l) => Math.max(max, l.setNo || 0), 0) + 1;
+
+    setNoInput.value = String(nextSetNo);
+    weightInput.value = String(firstSet.weight ?? "");
+    repsInput.value = String(firstSet.reps ?? "");
+    rpeInput.value = firstSet.rpe ?? "";
+    memoInput.value = firstSet.memo ?? "";
+    if (firstSet.bodyWeight != null) {
+      bwInput.value = String(firstSet.bodyWeight);
+    }
+  });
+}
+
+// ----------------------
 // セレクト変更時の再描画
 // ----------------------
 exerciseSelectForGraph.addEventListener("change", () => {
-  const ex = exerciseSelectForGraph.value;
-  const range = rangeSelect.value;
+  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
   if (ex) {
     updateRmChart(ex, range);
     renderStats(ex, range);
@@ -611,14 +803,23 @@ exerciseSelectForGraph.addEventListener("change", () => {
 });
 
 rangeSelect.addEventListener("change", () => {
-  const ex = exerciseSelectForGraph.value;
-  const range = rangeSelect.value;
+  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
   if (ex) {
     updateRmChart(ex, range);
     renderStats(ex, range);
     renderHistory(ex, range);
   }
 });
+
+if (dateSessionSelect) {
+  dateSessionSelect.addEventListener("change", () => {
+    const selected = /** @type {HTMLSelectElement} */ (
+      dateSessionSelect
+    ).value;
+    renderSessionByDate(selected);
+  });
+}
 
 // ----------------------
 // 初期表示：Firestore から読み込み → ローカルにも同期
