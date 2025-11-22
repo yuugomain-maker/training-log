@@ -1,140 +1,324 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-  // --- あなたのFirebase設定をここに貼り付け ---
-  const firebaseConfig = {
-    apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
-    authDomain: "training-log-27407.firebaseapp.com",
-    projectId: "training-log-27407",
-    storageBucket: "training-log-27407.firebasestorage.app",
-    messagingSenderId: "996903584995",
-    appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
-    measurementId: "G-LBHF20MC70"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  // Firestore書き込み関数（使い方は下で説明）
-  export async function saveLogToCloud(log) {
-    try {
-      await addDoc(collection(db, "trainingLogs"), log);
-      console.log("Cloud保存成功:", log);
-    } catch (e) {
-      console.error("Cloud保存失敗:", e);
-    }
-  }
-
-  // Firestore読み込み関数（全データを取得）
-  export async function loadLogsFromCloud() {
-    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
-    return querySnapshot.docs.map(doc => doc.data());
-  }
-</script>
-
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>トレーニングログ（試作版）</title>
-  
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    header {
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 1.6rem;
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 800px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    section {
+      background: #020617;
+      border-radius: 12px;
+      padding: 12px 14px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      margin-bottom: 8px;
+    }
+
+    section h2 {
+      font-size: 1.1rem;
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    form label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    input[type="date"],
+    input[type="number"],
+    input[type="text"],
+    select {
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: inherit;
+      font-size: 0.9rem;
+    }
+
+    input::placeholder {
+      color: #6b7280;
+    }
+
+    button[type="submit"] {
+      margin-top: 8px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      background: #22c55e;
+      color: #022c22;
+      cursor: pointer;
+      transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, background 0.1s ease-out;
+    }
+
+    button[type="submit"]:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 18px rgba(34, 197, 94, 0.35);
+      background: #4ade80;
+    }
+
+    button[type="submit"]:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    #log-list {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+    }
+
+    #log-list li {
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #111827;
+      background: #020617;
+      margin-bottom: 4px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #log-list li:hover {
+      background: #0b1120;
+    }
+
+    .log-main-text {
+      flex: 1;
+    }
+
+    .log-delete-hint {
+      font-size: 0.7rem;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    .chart-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+    }
+
+    .chart-controls select {
+      min-width: 140px;
+    }
+
+    canvas {
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid #111827;
+    }
+
+    #stats p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+    }
+
+    #history h3 {
+      margin-bottom: 4px;
+      margin-top: 8px;
+      font-size: 0.95rem;
+    }
+
+    #history ul {
+      margin: 0 0 4px 1rem;
+      padding-left: 0;
+      font-size: 0.85rem;
+    }
+
+    #history li {
+      margin-bottom: 2px;
+    }
+
+    #history p {
+      margin: 0 0 4px;
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+  </style>
 </head>
 <body>
-  <h1>トレーニングログ（試作版）</h1>
+  <div class="container">
+    <header>
+      <h1>トレーニングログ（試作版）</h1>
+      <p class="subtitle">日付・種目・セット・重量・回数・RPE・メモを記録し、localStorage / Firestore / Google スプレッドシートに保存</p>
+    </header>
 
-  <!-- 入力フォーム -->
-  <form id="log-form">
-    <label>
-      日付：
-      <input type="date" id="date">
-    </label>
-    <br>
+    <main>
+      <!-- 左カラム：入力フォーム + 記録一覧 -->
+      <div>
+        <section>
+          <h2>入力フォーム</h2>
+          <form id="log-form">
+            <label>
+              日付
+              <input type="date" id="date" />
+            </label>
 
-    <label>
-      種目：
-      <select id="exercise">
-        <option value="">選択してください</option>
-        <option value="ベンチプレス">ベンチプレス</option>
-        <option value="スクワット">スクワット</option>
-        <option value="デッドリフト">デッドリフト</option>
-        <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
-        <option value="ラットプルダウン">ラットプルダウン</option>
-        <option value="シーテッドロウ">シーテッドロウ</option>
-        <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
-        <option value="ケーブルカール">ケーブルカール</option>
-        <option value="ハンマーカール">ハンマーカール</option>
-        <option value="レッグプレス">レッグプレス</option>
-        <option value="レッグカール">レッグカール</option>
-        <option value="レッグエクステンション">レッグエクステンション</option>
-        <option value="その他">その他</option>
-      </select>
-    </label>
-    <br>
+            <label>
+              種目
+              <select id="exercise">
+                <option value="">選択してください</option>
+                <option value="ベンチプレス">ベンチプレス</option>
+                <option value="スクワット">スクワット</option>
+                <option value="デッドリフト">デッドリフト</option>
+                <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
+                <option value="ラットプルダウン">ラットプルダウン</option>
+                <option value="シーテッドロウ">シーテッドロウ</option>
+                <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
+                <option value="ケーブルカール">ケーブルカール</option>
+                <option value="ハンマーカール">ハンマーカール</option>
+                <option value="レッグプレス">レッグプレス</option>
+                <option value="レッグカール">レッグカール</option>
+                <option value="レッグエクステンション">レッグエクステンション</option>
+                <option value="その他">その他</option>
+              </select>
+            </label>
 
-    <label>
-      セット番号：
-      <input type="number" id="setNo" min="1" value="1">
-    </label>
-    <br>
+            <label>
+              セット番号
+              <input type="number" id="setNo" min="1" value="1" />
+            </label>
 
-    <label>
-      重量(kg)：
-      <input type="number" id="weight">
-    </label>
-    <br>
+            <label>
+              重量 (kg)
+              <input type="number" id="weight" inputmode="decimal" />
+            </label>
 
-    <label>
-      回数：
-      <input type="number" id="reps">
-    </label>
-    <br>
+            <label>
+              回数
+              <input type="number" id="reps" inputmode="numeric" />
+            </label>
 
-    <label>
-      RPE：
-      <input type="number" id="rpe" step="0.5" min="5" max="10">
-    </label>
-    <br>
+            <label>
+              RPE
+              <input type="number" id="rpe" step="0.5" min="5" max="10" />
+            </label>
 
-    <label>
-      メモ：
-      <input type="text" id="memo" placeholder="フォーム・体調など">
-    </label>
-    <br><br>
+            <label>
+              メモ
+              <input type="text" id="memo" placeholder="フォーム・体調・補助あり など" />
+            </label>
 
-    <button type="submit">追加</button>
-  </form>
+            <button type="submit">このセットを追加</button>
+            <p class="hint">※ 同じ日・同じ種目のときはセット番号だけインクリメントして連続で登録できます。</p>
+          </form>
+        </section>
 
-  <h2>記録一覧</h2>
-  <ul id="log-list"></ul>
+        <section>
+          <h2>記録一覧</h2>
+          <p class="hint">※ 一覧の行をクリックすると、その記録を削除できます。</p>
+          <ul id="log-list"></ul>
+        </section>
+      </div>
 
-  <h2>推定1RMグラフ</h2>
-  <label for="exercise-select">種目を選択：</label>
-  <select id="exercise-select">
-    <option value="">記録がある種目から選択</option>
-  </select>
+      <!-- 右カラム：グラフ + 統計 + 履歴 -->
+      <div>
+        <section>
+          <h2>推定 1RM グラフ</h2>
+          <div class="chart-controls">
+            <label>
+              種目：
+              <select id="exercise-select">
+                <option value="">記録がある種目から選択</option>
+              </select>
+            </label>
 
-  <label for="range-select">　期間：</label>
-  <select id="range-select">
-    <option value="all">全期間</option>
-    <option value="30">直近30日</option>
-    <option value="90">直近90日</option>
-  </select>
+            <label>
+              期間：
+              <select id="range-select">
+                <option value="all">全期間</option>
+                <option value="30">直近 30 日</option>
+                <option value="90">直近 90 日</option>
+              </select>
+            </label>
+          </div>
 
-  <br><br>
-  <canvas id="rmChart" height="200"></canvas>
+          <canvas id="rmChart" height="200"></canvas>
+        </section>
 
-  <h2>統計</h2>
-  <div id="stats"></div>
+        <section>
+          <h2>統計</h2>
+          <div id="stats">種目を選択すると統計が表示されます。</div>
+        </section>
 
-  <h2>種目別履歴（最近3回のトレーニング日）</h2>
-  <div id="history"></div>
+        <section>
+          <h2>種目別履歴（最近 3 回のトレーニング日）</h2>
+          <div id="history">種目を選択すると履歴が表示されます。</div>
+        </section>
+      </div>
+    </main>
+  </div>
 
-<!-- グラフ用ライブラリ Chart.js（これは通常のscriptでOK） -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<!-- 自分のスクリプト：必ず module で -->
-<script type="module" src="./app.js"></script>
+  <!-- グラフ用ライブラリ Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- アプリ本体 -->
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
-
