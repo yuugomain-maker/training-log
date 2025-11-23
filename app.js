@@ -84,6 +84,7 @@ function sendLogToSheet(log) {
 // ローカルストレージ関連
 // ==============================
 const STORAGE_KEY = "trainingLog_v2"; // お好みで名前変更 OK
+const CUSTOM_EXERCISE_KEY = "trainingCustomExercises_v1";
 
 /** ローカルストレージから既存データをロード（なければ空配列） */
 function loadRecords() {
@@ -107,6 +108,53 @@ function saveLogsToLocal(logs) {
   }
 }
 
+function loadCustomExercises() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_EXERCISE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn("loadCustomExercises failed:", e);
+    return [];
+  }
+}
+
+function saveCustomExercises(list) {
+  try {
+    localStorage.setItem(CUSTOM_EXERCISE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error("saveCustomExercises failed:", e);
+  }
+}
+
+function appendCustomExerciseOption(name) {
+  const group = document.getElementById("custom-ex-group");
+  if (!group) return;
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  group.appendChild(opt);
+}
+
+function getAllExerciseNames() {
+  const select = /** @type {HTMLSelectElement} */ (
+    document.getElementById("exercise")
+  );
+  const names = [];
+  for (const opt of select.options) {
+    if (opt.value) names.push(opt.value);
+  }
+  return names;
+}
+
+function populateCustomExercises() {
+  const stored = loadCustomExercises();
+  stored.forEach((name) => appendCustomExerciseOption(name));
+} catch (e) {
+    console.error("saveLogsToLocal failed:", e);
+  }
+}
+
 // ==============================
 // DOM 要素の取得
 // ==============================
@@ -120,6 +168,9 @@ const todayBtn = document.getElementById("today-btn");
 const copyFirstSetBtn = document.getElementById("copy-first-set-btn");
 const dateSessionSelect = document.getElementById("date-session-select");
 const dateSessionSummary = document.getElementById("date-session-summary");
+const exerciseSelect = document.getElementById("exercise");
+const customExInput = document.getElementById("custom-ex-input");
+const addCustomExBtn = document.getElementById("add-custom-ex-btn");
 
 let rmChart = null;
 
@@ -782,24 +833,31 @@ if (copyFirstSetBtn) {
   });
 }
 
-// ----------------------
-// セレクト変更時の再描画
-// ----------------------
-exerciseSelectForGraph.addEventListener("change", () => {
-  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
-  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
-  if (ex) {
-    updateRmChart(ex, range);
-    renderStats(ex, range);
-    renderHistory(ex, range);
-  } else {
-    if (rmChart) {
-      rmChart.destroy();
-      rmChart = null;
+if (addCustomExBtn && customExInput && exerciseSelect) {
+  addCustomExBtn.addEventListener("click", () => {
+    const input = /** @type {HTMLInputElement} */ (customExInput);
+    const select = /** @type {HTMLSelectElement} */ (exerciseSelect);
+    const name = input.value.trim();
+    if (!name) {
+      alert("新しい種目名を入力してください。");
+      return;
     }
-    statsDiv.textContent = "種目を選択すると統計が表示されます。";
-    historyDiv.textContent = "種目を選択すると履歴が表示されます。";
-  }
+
+    const existing = getAllExerciseNames();
+    if (existing.includes(name)) {
+      alert("その種目はすでに登録されています。");
+      select.value = name;
+      input.value = "";
+      return;
+    }
+
+    const stored = loadCustomExercises();
+    stored.push(name);
+    saveCustomExercises(stored);
+    appendCustomExerciseOption(name);
+    select.value = name;
+    input.value = "";
+  });
 });
 
 rangeSelect.addEventListener("change", () => {
@@ -826,6 +884,7 @@ if (dateSessionSelect) {
 // ----------------------
 (async () => {
   setDefaultDate();
+  populateCustomExercises();
 
   const cloudLogs = await loadLogsFromCloud();
   if (cloudLogs.length > 0) {
