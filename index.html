@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>トレーニングログ（試作版）</title>
+  <title>トレーニングログ</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -29,7 +29,14 @@
 
     h1 {
       margin: 0 0 4px;
-      font-size: 1.6rem;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: linear-gradient(120deg, #22c55e, #06b6d4, #a855f7);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
 
     .subtitle {
@@ -73,7 +80,7 @@
       margin-bottom: 8px;
     }
 
-    input[type="date"],
+        input[type="date"],
     input[type="number"],
     input[type="text"],
     select {
@@ -85,14 +92,37 @@
       font-size: 0.9rem;
     }
 
+    /* セレクトボックス内のカテゴリ( optgroup )を少し目立たせる */
+    select optgroup {
+      background-color: #0b1120;
+      color: #fbbf24;
+      font-weight: 600;
+    }
+
+    select option {
+      background-color: #020617;
+      color: #e5e7eb;
+    }
+
     input::placeholder {
       color: #6b7280;
     }
 
-    .date-row {
+        .date-row {
       display: flex;
       gap: 8px;
       align-items: center;
+    }
+
+    .custom-ex-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .custom-ex-input {
+      flex: 1;
     }
 
     .date-row input[type="date"] {
@@ -259,8 +289,7 @@
 <body>
   <div class="container">
     <header>
-      <h1>トレーニングログ（試作版）</h1>
-      <p class="subtitle">日付・体重・種目・セット・重量・回数・RPE・メモを記録し、localStorage / Firestore / Google スプレッドシートに保存</p>
+      <h1>トレーニングログ</h1>
     </header>
 
     <main>
@@ -269,19 +298,6 @@
         <section>
           <h2>入力フォーム</h2>
           <form id="log-form">
-            <label>
-              日付
-              <div class="date-row">
-                <input type="date" id="date" />
-                <button type="button" id="today-btn" class="btn-secondary">本日</button>
-              </div>
-            </label>
-
-            <label>
-              体重 (kg)
-              <input type="number" id="bodyWeight" inputmode="decimal" />
-            </label>
-
             <label>
               種目
               <select id="exercise">
@@ -311,7 +327,18 @@
                 <optgroup label="その他">
                   <option value="その他">その他</option>
                 </optgroup>
+                <optgroup id="custom-ex-group" label="カスタム">
+                </optgroup>
               </select>
+              <div class="custom-ex-row">
+                <input
+                  type="text"
+                  id="custom-ex-input"
+                  class="custom-ex-input"
+                  placeholder="新しい種目名を入力"
+                />
+                <button type="button" id="add-custom-ex-btn" class="btn-secondary">種目を追加</button>
+              </div>
             </label>
 
             <label>
@@ -319,9 +346,9 @@
               <input type="number" id="setNo" min="1" value="1" />
             </label>
 
-            <label>
+                        <label>
               重量 (kg)
-              <input type="number" id="weight" inputmode="decimal" />
+              <input type="number" id="weight" inputmode="decimal" step="0.1" />
             </label>
 
             <label>
