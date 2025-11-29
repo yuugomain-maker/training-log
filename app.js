@@ -748,61 +748,85 @@ form.addEventListener("submit", (e) => {
   const exercise = /** @type {HTMLSelectElement} */ (
     document.getElementById("exercise")
   ).value;
-
-  const isCardio = isCardioExercise(exercise);
-
+  const setNo =
+    Number(
+      /** @type {HTMLInputElement} */ (document.getElementById("setNo")).value,
+    ) || 1;
+  const weightInput = /** @type {HTMLInputElement} */ (
+    document.getElementById("weight")
+  );
+  const repsInput = /** @type {HTMLInputElement} */ (
+    document.getElementById("reps")
+  );
+  const weight = Number(weightInput.value);
+  const reps = Number(repsInput.value);
+  const rpe = /** @type {HTMLInputElement} */ (
+    document.getElementById("rpe")
+  ).value;
   const memo = /** @type {HTMLInputElement} */ (
     document.getElementById("memo")
   ).value;
-  const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
 
-  let setNo = 1;
-  let weight = 0;
-  let reps = 0;
-  let rpe = null;
-  let distance = null;
-  let duration = null;
-  let speed = null;
+  // 部位ボタンから有酸素かどうか判定
+  const activeBodypartBtn = /** @type {HTMLButtonElement | null} */ (
+    document.querySelector(".bodypart-btn.is-active")
+  );
+  const bodypart = activeBodypartBtn?.dataset.bodypart || "";
+  const isCardio = bodypart === "有酸素";
+
+  // 有酸素用入力欄（存在しない場合もあるので ? 付きで取得）
+  const cardioDistanceInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cardio-distance")
+  );
+  const cardioTimeInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cardio-time")
+  );
+  const cardioSpeedInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cardio-speed")
+  );
+
+  const cardioDistanceRaw = cardioDistanceInput?.value ?? "";
+  const cardioTimeRaw = cardioTimeInput?.value ?? "";
+  const cardioSpeedRaw = cardioSpeedInput?.value ?? "";
+
+  // ---- 必須チェック ----
+  if (!date || !exercise) {
+    if (isCardio) {
+      alert("日付・種目・時間は必須です。");
+    } else {
+      alert("日付・種目・重量・回数は必須です。");
+    }
+    return;
+  }
 
   if (isCardio) {
-    distance = Number(
-      /** @type {HTMLInputElement} */ (document.getElementById("distance"))
-        .value || 0,
-    );
-    duration = Number(
-      /** @type {HTMLInputElement} */ (document.getElementById("duration"))
-        .value || 0,
-    );
-    speed = /** @type {HTMLInputElement} */ (
-      document.getElementById("speed")
-    ).value;
-
-    if (!date || !exercise || (!distance && !duration)) {
-      alert("日付・種目・距離または時間は必須です。");
+    // 有酸素：時間だけ必須（距離・速度は空欄OK）
+    if (cardioTimeRaw.trim() === "") {
+      alert("日付・種目・時間は必須です。");
       return;
     }
   } else {
-    setNo =
-      Number(
-        /** @type {HTMLInputElement} */ (
-          document.getElementById("setNo")
-        ).value,
-      ) || 1;
-    weight = Number(
-      /** @type {HTMLInputElement} */ (document.getElementById("weight")).value,
-    );
-    reps = Number(
-      /** @type {HTMLInputElement} */ (document.getElementById("reps")).value,
-    );
-    rpe = /** @type {HTMLInputElement} */ (
-      document.getElementById("rpe")
-    ).value;
-
-    if (!date || !exercise || !weight || !reps) {
+    // 通常の筋トレ：重量・回数は必須
+    if (!weight || !reps) {
       alert("日付・種目・重量・回数は必須です。");
       return;
     }
   }
+
+  const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
+
+  const cardioDistance =
+    isCardio && cardioDistanceRaw.trim() !== ""
+      ? Number(cardioDistanceRaw)
+      : null;
+  const cardioTime =
+    isCardio && cardioTimeRaw.trim() !== "" ? Number(cardioTimeRaw) : null;
+  const cardioSpeed =
+    isCardio && cardioSpeedRaw.trim() !== "" ? Number(cardioSpeedRaw) : null;
+
+  // 有酸素のときは RM 計算に影響しないよう重量・回数は 0 を入れておく
+  const logWeight = isCardio ? 0 : weight;
+  const logReps = isCardio ? 0 : reps;
 
   /** @type {TrainingLog} */
   const newLog = {
@@ -810,63 +834,40 @@ form.addEventListener("submit", (e) => {
     bodyWeight,
     exercise,
     setNo,
-    weight,
-    reps,
+    weight: logWeight,
+    reps: logReps,
     rpe: rpe || null,
     memo: memo || "",
+    // 有酸素用フィールド（存在しない場合は無視される）
+    cardioDistance,
+    cardioTime,
+    cardioSpeed,
+    isCardio,
   };
 
-  // 有酸素の距離・時間・速さが入力されていればメモの先頭にまとめて付ける
-  if (cardioDistanceInput || cardioTimeInput || cardioPaceInput) {
-    const d = cardioDistanceInput
-      ? /** @type {HTMLInputElement} */ (cardioDistanceInput).value
-      : "";
-    const t = cardioTimeInput
-      ? /** @type {HTMLInputElement} */ (cardioTimeInput).value
-      : "";
-    const p = cardioPaceInput
-      ? /** @type {HTMLInputElement} */ (cardioPaceInput).value
-      : "";
-
-    const parts = [];
-    if (d) parts.push(`距離:${d}km`);
-    if (t) parts.push(`時間:${t}分`);
-    if (p) parts.push(`速さ:${p}分/km`);
-
-    if (parts.length > 0) {
-      const prefix = parts.join(" / ");
-      newLog.memo = newLog.memo ? `${prefix} / ${newLog.memo}` : prefix;
-    }
-  }
-
-
+  // ローカル / Firestore / シートの 3 か所に保存
   logs.push(newLog);
   saveLogsToLocal(logs);
   saveLogToCloud(newLog);
   sendLogToSheet(newLog);
 
+  // 次セット入力をしやすくする（体重はそのまま残す）
   const setNoInput = /** @type {HTMLInputElement} */ (
     document.getElementById("setNo")
   );
   setNoInput.value = String(setNo + 1);
 
-  // 入力リセット
-  /** @type {HTMLInputElement} */ (document.getElementById("weight")).value =
-    "";
-  /** @type {HTMLInputElement} */ (document.getElementById("reps")).value =
-    "";
-  /** @type {HTMLInputElement} */ (document.getElementById("rpe")).value =
-    "";
-  /** @type {HTMLInputElement} */ (
-    document.getElementById("distance")
-  ).value = "";
-  /** @type {HTMLInputElement} */ (
-    document.getElementById("duration")
-  ).value = "";
-  /** @type {HTMLInputElement} */ (document.getElementById("speed")).value =
-    "";
-  /** @type {HTMLInputElement} */ (document.getElementById("memo")).value =
-    "";
+  if (isCardio) {
+    if (cardioDistanceInput) cardioDistanceInput.value = "";
+    if (cardioTimeInput) cardioTimeInput.value = "";
+    if (cardioSpeedInput) cardioSpeedInput.value = "";
+  } else {
+    weightInput.value = "";
+    repsInput.value = "";
+    /** @type {HTMLInputElement} */ (document.getElementById("rpe")).value = "";
+  }
+
+  /** @type {HTMLInputElement} */ (document.getElementById("memo")).value = "";
 
   renderAll();
 });
@@ -1012,28 +1013,3 @@ if (dateSessionSelect) {
 }
 
 // 種目プルダウン変更時に筋トレ／有酸素のフィールド切り替え
-if (exerciseSelect) {
-  exerciseSelect.addEventListener("change", (e) => {
-    const name = /** @type {HTMLSelectElement} */ (e.target).value;
-    updateFieldVisibilityByExercise(name);
-  });
-}
-
-// ==============================
-// 初期表示
-// ==============================
-(async () => {
-  setDefaultDate();
-  renderExerciseOptionsForForm();
-
-  const cloudLogs = await loadLogsFromCloud();
-  if (cloudLogs.length > 0) {
-    logs = cloudLogs;
-    saveLogsToLocal(logs);
-    console.log(`🔥 ${cloudLogs.length}件のログを Firestore から読み込みました`);
-  } else {
-    console.log("ℹ️ Firestore にログがありません（ローカルのみ表示）");
-  }
-
-  renderAll();
-})();
