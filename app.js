@@ -270,12 +270,6 @@ const customExInput = document.getElementById("custom-ex-input");
 const addCustomExBtn = document.getElementById("add-custom-ex-btn");
 
 // 有酸素系の種目名リスト
-const CARDIO_EXERCISES = ["ウォーキング", "ジョギング", "ランニング", "バイク", "エアロバイク"];
-
-/** cardio 種目かどうか */
-function isCardioExercise(name) {
-  return CARDIO_EXERCISES.includes(name);
-}
 const bodyPartButtons = document.querySelectorAll(".body-part-btn");
 const strengthFields = document.querySelectorAll(".strength-field");
 const cardioFields = document.querySelectorAll(".cardio-field");
@@ -1008,4 +1002,8 @@ if (exerciseSelect) {
   exerciseSelect.addEventListener("change", updateFormByExercise);
 }
 
-updateForm
+updateFormByExercise();
+
+rangeSelect.addEventListener("change", () => {
+  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+  const range = /** @type {HTMLS
