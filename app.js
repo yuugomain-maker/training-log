@@ -807,10 +807,10 @@ form.addEventListener("submit", (e) => {
     }
   } else {
     // 通常の筋トレ：重量・回数は必須
-    if (!weight || !reps) {
-      alert("日付・種目・重量・回数は必須です。");
-      return;
-    }
+    if (!date || !exercise) {
+  alert("日付・種目は必須です。");
+  return;
+}
   }
 
   const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
@@ -1013,3 +1013,4 @@ if (dateSessionSelect) {
 }
 
 // 種目プルダウン変更時に筋トレ／有酸素のフィールド切り替え
+if (exerciseSel
