@@ -39,12 +39,6 @@
       color: transparent;
     }
 
-    .subtitle {
-      margin: 0;
-      font-size: 0.9rem;
-      color: #9ca3af;
-    }
-
     main {
       display: grid;
       grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
@@ -80,7 +74,7 @@
       margin-bottom: 8px;
     }
 
-        input[type="date"],
+    input[type="date"],
     input[type="number"],
     input[type="text"],
     select {
@@ -92,41 +86,56 @@
       font-size: 0.9rem;
     }
 
-    /* セレクトボックス内のカテゴリ( optgroup )を少し目立たせる */
-    select optgroup {
-      background-color: #0b1120;
-      color: #fbbf24;
-      font-weight: 600;
-    }
-
-    select option {
-      background-color: #020617;
-      color: #e5e7eb;
-    }
-
     input::placeholder {
       color: #6b7280;
     }
 
-        .date-row {
+    .date-row {
       display: flex;
       gap: 8px;
       align-items: center;
-    }
-
-    .custom-ex-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-top: 6px;
-    }
-
-    .custom-ex-input {
-      flex: 1;
     }
 
     .date-row input[type="date"] {
       flex: 1;
+    }
+
+    .date-row .bodyweight-input {
+      width: 120px;
+    }
+
+    .bodypart-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 4px 0 8px;
+    }
+
+    .bodypart-btn {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bodypart-btn span.icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      background: #4b5563;
+      display: inline-block;
+    }
+
+    .bodypart-btn.active {
+      background: #22c55e;
+      color: #022c22;
+      border-color: #16a34a;
     }
 
     button[type="submit"] {
@@ -165,6 +174,17 @@
 
     .btn-secondary:hover {
       background: #0b1120;
+    }
+
+    .custom-ex-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .custom-ex-input {
+      flex: 1;
     }
 
     .button-row {
@@ -299,36 +319,53 @@
           <h2>入力フォーム</h2>
           <form id="log-form">
             <label>
+              日付 / 体重
+              <div class="date-row">
+                <input type="date" id="date" />
+                <button type="button" id="today-btn" class="btn-secondary">今日</button>
+                <input
+                  type="number"
+                  id="bodyWeight"
+                  class="bodyweight-input"
+                  inputmode="decimal"
+                  step="0.1"
+                  placeholder="体重 (kg)"
+                />
+              </div>
+            </label>
+
+            <label>
+              部位
+              <div class="bodypart-row" id="bodypart-row">
+                <button type="button" class="bodypart-btn active" data-part="all">
+                  <span class="icon"></span> 全て
+                </button>
+                <button type="button" class="bodypart-btn" data-part="chest">
+                  <span class="icon"></span> 胸
+                </button>
+                <button type="button" class="bodypart-btn" data-part="shoulder">
+                  <span class="icon"></span> 肩
+                </button>
+                <button type="button" class="bodypart-btn" data-part="back">
+                  <span class="icon"></span> 背中
+                </button>
+                <button type="button" class="bodypart-btn" data-part="legs">
+                  <span class="icon"></span> 脚
+                </button>
+                <button type="button" class="bodypart-btn" data-part="arms">
+                  <span class="icon"></span> 腕
+                </button>
+                <button type="button" class="bodypart-btn" data-part="other">
+                  <span class="icon"></span> その他
+                </button>
+              </div>
+            </label>
+
+            <label>
               種目
               <select id="exercise">
                 <option value="">選択してください</option>
-                <optgroup label="胸">
-                  <option value="ベンチプレス">ベンチプレス</option>
-                  <option value="インクラインダンベルプレス">インクラインダンベルプレス</option>
-                </optgroup>
-                <optgroup label="肩">
-                  <option value="オーバーヘッドプレス">オーバーヘッドプレス</option>
-                </optgroup>
-                <optgroup label="背中">
-                  <option value="ラットプルダウン">ラットプルダウン</option>
-                  <option value="シーテッドロウ">シーテッドロウ</option>
-                </optgroup>
-                <optgroup label="脚・下半身">
-                  <option value="スクワット">スクワット</option>
-                  <option value="デッドリフト">デッドリフト</option>
-                  <option value="レッグプレス">レッグプレス</option>
-                  <option value="レッグカール">レッグカール</option>
-                  <option value="レッグエクステンション">レッグエクステンション</option>
-                </optgroup>
-                <optgroup label="腕">
-                  <option value="ケーブルカール">ケーブルカール</option>
-                  <option value="ハンマーカール">ハンマーカール</option>
-                </optgroup>
-                <optgroup label="その他">
-                  <option value="その他">その他</option>
-                </optgroup>
-                <optgroup id="custom-ex-group" label="カスタム">
-                </optgroup>
+                <!-- 中身は app.js からカテゴリごとに生成 -->
               </select>
               <div class="custom-ex-row">
                 <input
@@ -346,7 +383,7 @@
               <input type="number" id="setNo" min="1" value="1" />
             </label>
 
-                        <label>
+            <label>
               重量 (kg)
               <input type="number" id="weight" inputmode="decimal" step="0.1" />
             </label>
