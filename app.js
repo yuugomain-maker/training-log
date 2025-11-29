@@ -814,10 +814,31 @@ form.addEventListener("submit", (e) => {
     reps,
     rpe: rpe || null,
     memo: memo || "",
-    distance,
-    duration,
-    speed: speed || null,
   };
+
+  // 有酸素の距離・時間・速さが入力されていればメモの先頭にまとめて付ける
+  if (cardioDistanceInput || cardioTimeInput || cardioPaceInput) {
+    const d = cardioDistanceInput
+      ? /** @type {HTMLInputElement} */ (cardioDistanceInput).value
+      : "";
+    const t = cardioTimeInput
+      ? /** @type {HTMLInputElement} */ (cardioTimeInput).value
+      : "";
+    const p = cardioPaceInput
+      ? /** @type {HTMLInputElement} */ (cardioPaceInput).value
+      : "";
+
+    const parts = [];
+    if (d) parts.push(`距離:${d}km`);
+    if (t) parts.push(`時間:${t}分`);
+    if (p) parts.push(`速さ:${p}分/km`);
+
+    if (parts.length > 0) {
+      const prefix = parts.join(" / ");
+      newLog.memo = newLog.memo ? `${prefix} / ${newLog.memo}` : prefix;
+    }
+  }
+
 
   logs.push(newLog);
   saveLogsToLocal(logs);
