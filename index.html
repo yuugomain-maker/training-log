@@ -340,6 +340,20 @@
               </div>
             </label>
 
+            <div class="body-part-row">
+              <span class="body-part-label">部位</span>
+              <div class="body-part-buttons">
+                <button type="button" class="body-part-btn active" data-body-part="胸">胸</button>
+                <button type="button" class="body-part-btn" data-body-part="肩">肩</button>
+                <button type="button" class="body-part-btn" data-body-part="背中">背中</button>
+                <button type="button" class="body-part-btn" data-body-part="脚・下半身">脚・下半身</button>
+                <button type="button" class="body-part-btn" data-body-part="腕">腕</button>
+                <button type="button" class="body-part-btn" data-body-part="腹">腹</button>
+                <button type="button" class="body-part-btn" data-body-part="有酸素">有酸素</button>
+                <button type="button" class="body-part-btn" data-body-part="その他">その他</button>
+              </div>
+            </div>
+
             <label>
               種目
               <select id="exercise">
@@ -354,10 +368,13 @@
                 <optgroup label="背中">
                   <option value="ラットプルダウン">ラットプルダウン</option>
                   <option value="シーテッドロウ">シーテッドロウ</option>
+                  <option value="ローロウ">ローロウ</option>
+                  <option value="リアデルトフライ">リアデルトフライ</option>
                 </optgroup>
                 <optgroup label="脚・下半身">
                   <option value="スクワット">スクワット</option>
                   <option value="デッドリフト">デッドリフト</option>
+                  <option value="ルーマニアンデッドリフト">ルーマニアンデッドリフト</option>
                   <option value="レッグプレス">レッグプレス</option>
                   <option value="レッグカール">レッグカール</option>
                   <option value="レッグエクステンション">レッグエクステンション</option>
@@ -365,8 +382,18 @@
                 <optgroup label="腕">
                   <option value="ケーブルカール">ケーブルカール</option>
                   <option value="ハンマーカール">ハンマーカール</option>
+                  <option value="オーバーヘッドエクステンション">オーバーヘッドエクステンション</option>
+                </optgroup>
+                <optgroup label="腹">
+                  <option value="ケーブルクランチ">ケーブルクランチ</option>
+                  <option value="アブローラー">アブローラー</option>
+                </optgroup>
+                <optgroup label="有酸素">
+                  <option value="ウォーキング">ウォーキング</option>
+                  <option value="バイク">バイク</option>
                 </optgroup>
                 <optgroup label="その他">
+                  <option value="ロータリートルソー">ロータリートルソー</option>
                   <option value="その他">その他</option>
                 </optgroup>
                 <optgroup id="custom-ex-group" label="カスタム"></optgroup>
@@ -384,29 +411,48 @@
               </div>
             </label>
 
-            <label>
-              セット番号
-              <input type="number" id="setNo" min="1" value="1" />
-            </label>
+            <div class="strength-field">
+              <label>
+                セット番号
+                <input type="number" id="setNo" min="1" value="1" />
+              </label>
 
-            <label>
-              重量 (kg)
-              <input type="number" id="weight" inputmode="decimal" step="0.1" />
-            </label>
+              <label>
+                重量 (kg)
+                <input type="number" id="weight" inputmode="decimal" step="0.1" />
+              </label>
 
-            <label>
-              回数
-              <input type="number" id="reps" inputmode="numeric" />
-            </label>
+              <label>
+                回数
+                <input type="number" id="reps" inputmode="numeric" />
+              </label>
 
-            <label>
-              RPE
-              <input type="number" id="rpe" step="0.5" min="5" max="10" />
-            </label>
+              <label>
+                RPE
+                <input type="number" id="rpe" step="0.5" min="5" max="10" />
+              </label>
+            </div>
+
+            <div class="cardio-field">
+              <label>
+                距離 (km)
+                <input type="number" id="distance" inputmode="decimal" step="0.1" />
+              </label>
+
+              <label>
+                時間 (分)
+                <input type="number" id="duration" inputmode="decimal" step="0.1" />
+              </label>
+
+              <label>
+                速さ
+                <input type="text" id="speed" placeholder="例: 時速6kmなど" />
+              </label>
+            </div>
 
             <label>
               メモ
-              <input type="text" id="memo" placeholder="フォーム・体調・補助あり など" />
+              <input type="text" id="memo" placeholder="フォーム・体調・補助あり / コースなど" />
             </label>
 
             <div class="button-row">
