@@ -311,6 +311,16 @@
     .cardio-field {
       display: none;
     }
+      .cardio-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .cardio-row label {
+      font-size: 0.8rem;
+    }
   </style>
 </head>
 <body>
@@ -452,8 +462,42 @@
 
             <label>
               メモ
-              <input type="text" id="memo" placeholder="フォーム・体調・補助あり / コースなど" />
+              <input
+                type="text"
+                id="memo"
+                placeholder="フォーム・体調・補助あり / コースなど"
+              />
             </label>
+
+            <div id="cardio-fields" class="cardio-row">
+              <label>
+                距離 (km)
+                <input
+                  type="number"
+                  id="cardio-distance"
+                  inputmode="decimal"
+                  step="0.01"
+                />
+              </label>
+              <label>
+                時間 (分)
+                <input
+                  type="number"
+                  id="cardio-time"
+                  inputmode="numeric"
+                  step="1"
+                />
+              </label>
+              <label>
+                速さ (分/km)
+                <input
+                  type="number"
+                  id="cardio-pace"
+                  inputmode="decimal"
+                  step="0.1"
+                />
+              </label>
+            </div>
 
             <div class="button-row">
               <button type="submit">このセットを追加</button>
