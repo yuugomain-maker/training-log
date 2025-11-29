@@ -827,9 +827,9 @@ form.addEventListener("submit", (e) => {
     reps: isCardio ? reps || 0 : reps,
     rpe: isCardio ? null : rpe || null,
     memo: memo || "",
-    cardioDistance,
-    cardioDuration,
-    cardioSpeed,
+    distance: cardioDistance,
+    duration: cardioDuration,
+    speed: cardioSpeed,
   };
 
   // ローカル / Firestore / シートの 3 か所に保存
@@ -1008,6 +1008,4 @@ if (exerciseSelect) {
   exerciseSelect.addEventListener("change", updateFormByExercise);
 }
 
-updateFormByExercise();
-
-rangeSelect.addEv
+updateForm
