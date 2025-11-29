@@ -268,6 +268,14 @@ const dateSessionSummary = document.getElementById("date-session-summary");
 const exerciseSelect = document.getElementById("exercise");
 const customExInput = document.getElementById("custom-ex-input");
 const addCustomExBtn = document.getElementById("add-custom-ex-btn");
+
+// 有酸素系の種目名リスト
+const CARDIO_EXERCISES = ["ウォーキング", "ジョギング", "ランニング", "バイク", "エアロバイク"];
+
+/** cardio 種目かどうか */
+function isCardioExercise(name) {
+  return CARDIO_EXERCISES.includes(name);
+}
 const bodyPartButtons = document.querySelectorAll(".body-part-btn");
 const strengthFields = document.querySelectorAll(".strength-field");
 const cardioFields = document.querySelectorAll(".cardio-field");
@@ -748,85 +756,66 @@ form.addEventListener("submit", (e) => {
   const exercise = /** @type {HTMLSelectElement} */ (
     document.getElementById("exercise")
   ).value;
-  const setNo =
-    Number(
-      /** @type {HTMLInputElement} */ (document.getElementById("setNo")).value,
-    ) || 1;
-  const weightInput = /** @type {HTMLInputElement} */ (
+
+  const setNoInputEl = /** @type {HTMLInputElement} */ (
+    document.getElementById("setNo")
+  );
+  const weightInputEl = /** @type {HTMLInputElement} */ (
     document.getElementById("weight")
   );
-  const repsInput = /** @type {HTMLInputElement} */ (
+  const repsInputEl = /** @type {HTMLInputElement} */ (
     document.getElementById("reps")
   );
-  const weight = Number(weightInput.value);
-  const reps = Number(repsInput.value);
-  const rpe = /** @type {HTMLInputElement} */ (
+  const rpeInputEl = /** @type {HTMLInputElement} */ (
     document.getElementById("rpe")
-  ).value;
-  const memo = /** @type {HTMLInputElement} */ (
-    document.getElementById("memo")
-  ).value;
-
-  // 部位ボタンから有酸素かどうか判定
-  const activeBodypartBtn = /** @type {HTMLButtonElement | null} */ (
-    document.querySelector(".bodypart-btn.is-active")
   );
-  const bodypart = activeBodypartBtn?.dataset.bodypart || "";
-  const isCardio = bodypart === "有酸素";
+  const memoInputEl = /** @type {HTMLInputElement} */ (
+    document.getElementById("memo")
+  );
 
-  // 有酸素用入力欄（存在しない場合もあるので ? 付きで取得）
+  const setNo = Number(setNoInputEl?.value || "1") || 1;
+  let weight = Number(weightInputEl?.value || "0");
+  let reps = Number(repsInputEl?.value || "0");
+  const rpe = rpeInputEl?.value ?? "";
+  const memo = memoInputEl?.value ?? "";
+
+  if (!date || !exercise) {
+    alert("日付・種目は必須です。");
+    return;
+  }
+
   const cardioDistanceInput = /** @type {HTMLInputElement | null} */ (
     document.getElementById("cardio-distance")
   );
-  const cardioTimeInput = /** @type {HTMLInputElement | null} */ (
-    document.getElementById("cardio-time")
+  const cardioDurationInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("cardio-duration")
   );
   const cardioSpeedInput = /** @type {HTMLInputElement | null} */ (
     document.getElementById("cardio-speed")
   );
 
-  const cardioDistanceRaw = cardioDistanceInput?.value ?? "";
-  const cardioTimeRaw = cardioTimeInput?.value ?? "";
-  const cardioSpeedRaw = cardioSpeedInput?.value ?? "";
+  const isCardio = isCardioExercise(exercise);
 
-  // ---- 必須チェック ----
-  if (!date || !exercise) {
-    if (isCardio) {
-      alert("日付・種目・時間は必須です。");
-    } else {
-      alert("日付・種目・重量・回数は必須です。");
-    }
+  const cardioDistance =
+    cardioDistanceInput && cardioDistanceInput.value
+      ? Number(cardioDistanceInput.value)
+      : null;
+  const cardioDuration =
+    cardioDurationInput && cardioDurationInput.value
+      ? Number(cardioDurationInput.value)
+      : null;
+  const cardioSpeed =
+    cardioSpeedInput && cardioSpeedInput.value
+      ? Number(cardioSpeedInput.value)
+      : null;
+
+  // 筋トレ種目のみ重量・回数を必須にする
+  if (!isCardio && (!weight || !reps)) {
+    alert("日付・種目・重量・回数は必須です。");
     return;
   }
 
-  if (isCardio) {
-    // 有酸素：時間だけ必須（距離・速度は空欄OK）
-    if (cardioTimeRaw.trim() === "") {
-      alert("日付・種目・時間は必須です。");
-      return;
-    }
-  } else {
-    // 通常の筋トレ：重量・回数は必須
-    if (!date || !exercise) {
-  alert("日付・種目は必須です。");
-  return;
-}
-  }
-
   const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
-
-  const cardioDistance =
-    isCardio && cardioDistanceRaw.trim() !== ""
-      ? Number(cardioDistanceRaw)
-      : null;
-  const cardioTime =
-    isCardio && cardioTimeRaw.trim() !== "" ? Number(cardioTimeRaw) : null;
-  const cardioSpeed =
-    isCardio && cardioSpeedRaw.trim() !== "" ? Number(cardioSpeedRaw) : null;
-
-  // 有酸素のときは RM 計算に影響しないよう重量・回数は 0 を入れておく
-  const logWeight = isCardio ? 0 : weight;
-  const logReps = isCardio ? 0 : reps;
 
   /** @type {TrainingLog} */
   const newLog = {
@@ -834,40 +823,31 @@ form.addEventListener("submit", (e) => {
     bodyWeight,
     exercise,
     setNo,
-    weight: logWeight,
-    reps: logReps,
-    rpe: rpe || null,
+    weight: isCardio ? weight || 0 : weight,
+    reps: isCardio ? reps || 0 : reps,
+    rpe: isCardio ? null : rpe || null,
     memo: memo || "",
-    // 有酸素用フィールド（存在しない場合は無視される）
     cardioDistance,
-    cardioTime,
+    cardioDuration,
     cardioSpeed,
-    isCardio,
   };
 
   // ローカル / Firestore / シートの 3 か所に保存
   logs.push(newLog);
-  saveLogsToLocal(logs);
-  saveLogToCloud(newLog);
-  sendLogToSheet(newLog);
+  saveLogsToLocal(logs); // localStorage
+  saveLogToCloud(newLog); // Firestore
+  sendLogToSheet(newLog); // Google スプレッドシート
 
   // 次セット入力をしやすくする（体重はそのまま残す）
-  const setNoInput = /** @type {HTMLInputElement} */ (
-    document.getElementById("setNo")
-  );
-  setNoInput.value = String(setNo + 1);
+  setNoInputEl.value = String(setNo + 1);
 
-  if (isCardio) {
-    if (cardioDistanceInput) cardioDistanceInput.value = "";
-    if (cardioTimeInput) cardioTimeInput.value = "";
-    if (cardioSpeedInput) cardioSpeedInput.value = "";
-  } else {
-    weightInput.value = "";
-    repsInput.value = "";
-    /** @type {HTMLInputElement} */ (document.getElementById("rpe")).value = "";
-  }
-
-  /** @type {HTMLInputElement} */ (document.getElementById("memo")).value = "";
+  if (weightInputEl) weightInputEl.value = "";
+  if (repsInputEl) repsInputEl.value = "";
+  if (rpeInputEl) rpeInputEl.value = "";
+  if (memoInputEl) memoInputEl.value = "";
+  if (cardioDistanceInput) cardioDistanceInput.value = "";
+  if (cardioDurationInput) cardioDurationInput.value = "";
+  if (cardioSpeedInput) cardioSpeedInput.value = "";
 
   renderAll();
 });
@@ -993,24 +973,41 @@ bodyPartButtons.forEach((btn) => {
   });
 });
 
-rangeSelect.addEventListener("change", () => {
-  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
-  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
-  if (ex && !isCardioExercise(ex)) {
-    updateRmChart(ex, range);
-    renderStats(ex, range);
-    renderHistory(ex, range);
-  }
-});
+// 有酸素種目のときは筋トレ用入力を隠し、
+// 距離・時間・速さの入力だけを表示する
+function updateFormByExercise() {
+  const ex = /** @type {HTMLSelectElement} */ (
+    document.getElementById("exercise")
+  ).value;
+  const isCardio = isCardioExercise(ex);
 
-if (dateSessionSelect) {
-  dateSessionSelect.addEventListener("change", () => {
-    const selected = /** @type {HTMLSelectElement} */ (
-      dateSessionSelect
-    ).value;
-    renderSessionByDate(selected);
+  const strengthIds = ["setNo", "weight", "reps", "rpe"];
+  strengthIds.forEach((id) => {
+    const input = /** @type {HTMLInputElement | null} */ (
+      document.getElementById(id)
+    );
+    if (!input) return;
+    const label = input.closest("label");
+    if (!label) return;
+    label.style.display = isCardio ? "none" : "flex";
+  });
+
+  const cardioIds = ["cardio-distance", "cardio-duration", "cardio-speed"];
+  cardioIds.forEach((id) => {
+    const input = /** @type {HTMLInputElement | null} */ (
+      document.getElementById(id)
+    );
+    if (!input) return;
+    const label = input.closest("label");
+    if (!label) return;
+    label.style.display = isCardio ? "flex" : "none";
   });
 }
 
-// 種目プルダウン変更時に筋トレ／有酸素のフィールド切り替え
-if (exerciseSel
+if (exerciseSelect) {
+  exerciseSelect.addEventListener("change", updateFormByExercise);
+}
+
+updateFormByExercise();
+
+rangeSelect.addEv
