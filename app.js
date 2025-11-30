@@ -987,4 +987,103 @@ if (copyFirstSetBtn) {
     setNoInput.value = String(nextSetNo);
     weightInput.value = String(firstSet.weight ?? "");
     repsInput.value = String(firstSet.reps ?? "");
-    rpeInput.value = first
+    rpeInput.value = firstSet.rpe ?? "";
+    memoInput.value = firstSet.memo ?? "";
+    if (firstSet.bodyWeight != null) {
+      bwInput.value = String(firstSet.bodyWeight);
+    }
+  });
+}
+
+if (addCustomExBtn && customExInput && exerciseSelect) {
+  addCustomExBtn.addEventListener("click", () => {
+    const input = /** @type {HTMLInputElement} */ (customExInput);
+    const select = /** @type {HTMLSelectElement} */ (exerciseSelect);
+    const name = input.value.trim();
+    if (!name) {
+      alert("新しい種目名を入力してください。");
+      return;
+    }
+
+    const existing = getAllExerciseNames();
+    if (existing.includes(name)) {
+      alert("その種目はすでに登録されています。");
+      select.value = name;
+      input.value = "";
+      updateFormByExercise();
+      return;
+    }
+
+    const stored = loadCustomExercises();
+    stored.push({ name, bodyPart: currentBodyPart });
+    saveCustomExercises(stored);
+
+    renderExerciseOptionsForForm();
+    select.value = name;
+    input.value = "";
+    updateFormByExercise();
+  });
+}
+
+// 部位ボタン: active 切り替え & 種目リスト更新
+bodyPartButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const bodyPart = btn.getAttribute("data-body-part");
+    if (!bodyPart) return;
+    currentBodyPart = bodyPart;
+
+    bodyPartButtons.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    renderExerciseOptionsForForm();
+  });
+});
+
+// 種目変更時にフォーム切り替え
+if (exerciseSelect) {
+  exerciseSelect.addEventListener("change", updateFormByExercise);
+}
+
+// グラフ用セレクト変更
+if (exerciseSelectForGraph) {
+  exerciseSelectForGraph.addEventListener("change", () => {
+    const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+    const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
+    if (ex && !isCardioExercise(ex)) {
+      updateRmChart(ex, range);
+      renderStats(ex, range);
+      renderHistory(ex, range);
+    }
+  });
+}
+
+if (rangeSelect) {
+  rangeSelect.addEventListener("change", () => {
+    const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
+    const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
+    if (ex && !isCardioExercise(ex)) {
+      updateRmChart(ex, range);
+      renderStats(ex, range);
+      renderHistory(ex, range);
+    }
+  });
+}
+
+if (dateSessionSelect) {
+  dateSessionSelect.addEventListener("change", () => {
+    const selectedDate = /** @type {HTMLSelectElement} */ (
+      dateSessionSelect
+    ).value;
+    renderSessionByDate(selectedDate);
+  });
+}
+
+// 初期化
+function init() {
+  setDefaultDate();
+  renderExerciseOptionsForForm();
+  updateFormByExercise();
+  renderAll();
+}
+
+init();
