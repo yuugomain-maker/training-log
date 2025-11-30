@@ -272,6 +272,21 @@ const addCustomExBtn = document.getElementById("add-custom-ex-btn");
 const bodyPartButtons = document.querySelectorAll(".body-part-btn");
 
 let currentBodyPart = "胸";
+
+// 部位ボタンのクリックで active 切り替え & 種目セレクト更新
+bodyPartButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const bodyPart = btn.getAttribute("data-body-part");
+    if (!bodyPart) return;
+    currentBodyPart = bodyPart;
+
+    bodyPartButtons.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    renderExerciseOptionsForForm();
+  });
+});
+
 let rmChart = null;
 let logs = loadRecords();
 
