@@ -29,7 +29,7 @@ const db = getFirestore(app);
 // Google Sheets 連携設定
 // ==============================
 const SHEET_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycbwwoKPVulUclvzJ19GOTMaQXY1BMKGZtEp7QqPaizhma8clylPSqzlxmPu0KOmP84ISlw/exec";
+  "https://script.google.com/macros/s/AKfycbxFzYlAOEIOogR4Zp5qs_gNd1XIWg992uuYpWGwMAowBsz7dWbJiLwZjwWoYcO4b0qUCg/exec";
 
 function sendLogToSheet(log) {
   if (!SHEET_WEBHOOK_URL) {
@@ -1087,3 +1087,4 @@ function init() {
 }
 
 init();
+
