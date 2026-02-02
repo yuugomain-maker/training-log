@@ -1,1090 +1,1278 @@
-// ==============================
-// Firebase / Firestore 読み込み
-// ==============================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+/*
+  目的：
+  - スプレッドシート自動反映は廃止（ネットワーク依存を減らす）
+  - 代わりに CSV 出力 / CSV インポート
+  - UI をスマホ寄りに（下ナビ / 履歴カード / 詳細画面）
+  - RPE はスライダー廃止 → 6〜10 を 0.5刻みボタン選択
+  - 履歴の並びは「入力順（createdAt）」を基準に安定化
+*/
 
-// ==============================
-// Firebase 初期化
-// ==============================
-const firebaseConfig = {
-  apiKey: "AIzaSyDCNOp_Qk__5ClLSVCUwDUU6rtGKAnX2JU",
-  authDomain: "training-log-27407.firebaseapp.com",
-  projectId: "training-log-27407",
-  storageBucket: "training-log-27407.firebasestorage.app",
-  messagingSenderId: "996903584995",
-  appId: "1:996903584995:web:09e63c9b6447b3952c71d6",
-  measurementId: "G-LBHF20MC70",
+// =====================
+// ストレージ
+// =====================
+const STORAGE_LOGS = "training_logs_v1";
+const STORAGE_EX_MASTER = "training_ex_master_v1";
+
+// =====================
+// 部位・初期種目
+// =====================
+// ※「背中」が「戻る」になる事故を避けるため、文字列を固定
+const PARTS = ["胸", "肩", "背中", "脚", "腕", "腹", "酸素あり", "その他"]; // UI表示
+
+// マスタ上は内部キーを揃える（酸素あり → 有酸素）
+const PART_KEY_MAP = {
+  "胸": "胸",
+  "肩": "肩",
+  "背中": "背中",
+  "脚": "脚",
+  "腕": "腕",
+  "腹": "腹",
+  "酸素あり": "有酸素",
+  "その他": "その他",
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const DEFAULT_EXERCISES = [
+  { name: "ベンチプレス", part: "胸", type: "筋トレ" },
+  { name: "インクラインダンベルプレス", part: "胸", type: "筋トレ" },
+  { name: "チェストプレス", part: "胸", type: "筋トレ" },
 
-// ==============================
-// Google Sheets 連携設定
-// ==============================
-const SHEET_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycbxFzYlAOEIOogR4Zp5qs_gNd1XIWg992uuYpWGwMAowBsz7dWbJiLwZjwWoYcO4b0qUCg/exec";
+  { name: "オーバーヘッドプレス", part: "肩", type: "筋トレ" },
+  { name: "ダンベルショルダープレス", part: "肩", type: "筋トレ" },
+  { name: "サイドレイズ", part: "肩", type: "筋トレ" },
 
-function sendLogToSheet(log) {
-  if (!SHEET_WEBHOOK_URL) {
-    console.warn("SHEET_WEBHOOK_URL が設定されていません");
+  { name: "ラットプルダウン", part: "背中", type: "筋トレ" },
+  { name: "シーテッドロウ", part: "背中", type: "筋トレ" },
+  { name: "リアデルトフライ", part: "背中", type: "筋トレ" },
+
+  { name: "スクワット", part: "脚", type: "筋トレ" },
+  { name: "ルーマニアンデッドリフト", part: "脚", type: "筋トレ" },
+  { name: "レッグプレス", part: "脚", type: "筋トレ" },
+
+  { name: "ケーブルカール", part: "腕", type: "筋トレ" },
+  { name: "ハンマーカール", part: "腕", type: "筋トレ" },
+
+  { name: "ケーブルクランチ", part: "腹", type: "筋トレ" },
+  { name: "アブローラー", part: "腹", type: "筋トレ" },
+
+  { name: "ウォーキングマシン", part: "有酸素", type: "有酸素" },
+  { name: "ウォーキング", part: "有酸素", type: "有酸素" },
+  { name: "バイク", part: "有酸素", type: "有酸素" },
+
+  { name: "ロータリートルソー", part: "その他", type: "筋トレ" },
+];
+
+// =====================
+// DOM
+// =====================
+const $ = (id) => document.getElementById(id);
+
+const pageRecord = $("page-record");
+const pageHistory = $("page-history");
+const pageDetail = $("page-history-detail");
+const pageAnalysis = $("page-analysis");
+const pageSettings = $("page-settings");
+
+const dateInput = $("date");
+const partChips = $("part-chips");
+const exSelect = $("exercise-select");
+const setMinus = $("set-minus");
+const setPlus = $("set-plus");
+const setNoEl = $("set-no");
+
+const strengthFields = $("strength-fields");
+const cardioFields = $("cardio-fields");
+
+const weightInput = $("weight");
+const repsInput = $("reps");
+const rpeGrid = $("rpe-grid");
+const rpeClear = $("rpe-clear");
+
+const distanceInput = $("distance");
+const durationInput = $("duration");
+const speedInput = $("speed");
+
+const bodyWeightInput = $("bodyWeight");
+const memoInput = $("memo");
+const saveBtn = $("save-btn");
+const saveHint = $("save-hint");
+
+const recentBox = $("recent-box");
+const recentList = $("recent-list");
+
+const historyList = $("history-list");
+const csvExportBtn = $("csv-export");
+
+const detailBack = $("detail-back");
+const detailCopy = $("detail-copy");
+const detailTitle = $("detail-title");
+const detailBody = $("detail-body");
+
+const analysisExercise = $("analysis-exercise");
+const analysisHistory = $("analysis-history");
+const analysisHint = $("analysis-hint");
+
+const csvImport = $("csv-import");
+const addExerciseBtn = $("add-exercise-btn");
+const exerciseMaster = $("exercise-master");
+
+const modal = $("modal");
+const modalClose = $("modal-close");
+const modalAdd = $("modal-add");
+const modalHint = $("modal-hint");
+const newExName = $("new-ex-name");
+const newExPart = $("new-ex-part");
+const newExType = $("new-ex-type");
+
+let rmChart = null;
+
+// =====================
+// 状態
+// =====================
+/** @type {Array<any>} */
+let logs = loadLogs();
+/** @type {Array<{name:string, part:string, type:'筋トレ'|'有酸素'}>} */
+let exMaster = loadExerciseMaster();
+
+let currentPartUi = "胸"; // UI表示
+let currentSetNo = 1;
+let selectedRpe = null;
+let currentDetailDate = null;
+
+// =====================
+// 初期化
+// =====================
+init();
+
+function init(){
+  // 日付初期値
+  dateInput.value = today();
+
+  // 部位チップ描画
+  renderPartChips();
+
+  // 種目マスタ描画
+  renderExerciseMaster();
+
+  // 記録画面の種目選択
+  refreshExerciseSelect();
+
+  // RPE ボタン
+  renderRpeButtons();
+
+  // セット +/-
+  setMinus.addEventListener("click", ()=>{
+    currentSetNo = Math.max(1, currentSetNo - 1);
+    setNoEl.textContent = String(currentSetNo);
+  });
+  setPlus.addEventListener("click", ()=>{
+    currentSetNo += 1;
+    setNoEl.textContent = String(currentSetNo);
+  });
+
+  // 種目変更で入力フィールド切替 + 直近表示
+  exSelect.addEventListener("change", ()=>{
+    syncFieldsByExercise();
+    renderRecent();
+  });
+
+  // RPE クリア
+  rpeClear.addEventListener("click", ()=>{
+    selectedRpe = null;
+    Array.from(document.querySelectorAll(".rpe-btn")).forEach(b=>b.classList.remove("active"));
+  });
+
+  // 保存
+  saveBtn.addEventListener("click", onSave);
+
+  // 履歴
+  csvExportBtn.addEventListener("click", exportCsv);
+
+  // 詳細
+  detailBack.addEventListener("click", ()=>{
+    showPage("history");
+  });
+  detailCopy.addEventListener("click", copyDetailText);
+
+  // 分析
+  analysisExercise.addEventListener("change", renderAnalysis);
+
+  // 設定：CSVインポート
+  csvImport.addEventListener("change", onCsvImport);
+
+  // 種目追加
+  addExerciseBtn.addEventListener("click", openModal);
+  modalClose.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e)=>{ if(e.target === modal) closeModal(); });
+  modalAdd.addEventListener("click", onAddExercise);
+
+  // モーダルの部位選択（UI部位→内部部位キーに変換）
+  newExPart.innerHTML = "";
+  PARTS.forEach(p=>{
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    newExPart.appendChild(opt);
+  });
+  newExPart.value = "胸";
+
+  // 下ナビ
+  document.querySelectorAll(".nav-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const page = btn.dataset.page;
+      showPage(page);
+    });
+  });
+
+  // 初回表示
+  showPage("record");
+  renderHistory();
+  renderAnalysisOptions();
+  renderAnalysis();
+  syncFieldsByExercise();
+  renderRecent();
+}
+
+// =====================
+// UI: ページ切替
+// =====================
+function showPage(page){
+  pageRecord.style.display = page === "record" ? "" : "none";
+  pageHistory.style.display = page === "history" ? "" : "none";
+  pageDetail.style.display = page === "detail" ? "" : "none";
+  pageAnalysis.style.display = page === "analysis" ? "" : "none";
+  pageSettings.style.display = page === "settings" ? "" : "none";
+
+  // ナビのactive
+  document.querySelectorAll(".nav-btn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.page === page);
+  });
+
+  if(page === "history"){
+    renderHistory();
+  }
+  if(page === "analysis"){
+    renderAnalysisOptions();
+    renderAnalysis();
+  }
+  if(page === "settings"){
+    renderExerciseMaster();
+  }
+}
+
+// =====================
+// 部位チップ
+// =====================
+function renderPartChips(){
+  partChips.innerHTML = "";
+
+  PARTS.forEach((p)=>{
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip" + (p === currentPartUi ? " active" : "");
+    btn.textContent = p;
+
+    btn.addEventListener("click", ()=>{
+      currentPartUi = p;
+      Array.from(partChips.children).forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      refreshExerciseSelect();
+      syncFieldsByExercise();
+      renderRecent();
+    });
+
+    partChips.appendChild(btn);
+  });
+}
+
+// =====================
+// 種目セレクト
+// =====================
+function refreshExerciseSelect(){
+  const internalPart = PART_KEY_MAP[currentPartUi] || currentPartUi;
+
+  const list = exMaster
+    .filter(x=>x.part === internalPart)
+    .map(x=>x.name)
+    .sort((a,b)=>a.localeCompare(b, "ja"));
+
+  exSelect.innerHTML = "";
+  if(list.length === 0){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "種目がありません（設定で追加）";
+    exSelect.appendChild(opt);
     return;
   }
 
-  fetch(SHEET_WEBHOOK_URL, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(log),
-  })
-    .then(() => {
-      console.log("📄 シートへ送信完了");
-    })
-    .catch((err) => {
-      console.error("⚠ シートへの書き出し失敗:", err);
-    });
-}
-
-// ==============================
-// 型情報（JSDoc）
-// ==============================
-/**
- * @typedef {Object} TrainingLog
- * @property {string} date - YYYY-MM-DD
- * @property {number | null} [bodyWeight]
- * @property {string} exercise
- * @property {number} setNo
- * @property {number} weight
- * @property {number} reps
- * @property {string | null} [rpe]
- * @property {string} [memo]
- * @property {number | null} [distance]
- * @property {number | null} [duration]
- * @property {number | null} [speed]
- */
-
-/**
- * @typedef {Object} ExerciseSession
- * @property {string} date
- * @property {TrainingLog[]} sets
- * @property {TrainingLog} topSet
- * @property {number} top1RM
- * @property {number} volume
- */
-
-// ==============================
-// 種目マスタ（カテゴリごと）
-// ==============================
-const BODY_PARTS = ["胸", "肩", "背中", "脚・下半身", "腕", "腹", "有酸素", "その他"];
-
-const DEFAULT_EXERCISES = {
-  胸: ["ベンチプレス", "インクラインダンベルプレス", "チェストプレス"],
-  肩: ["オーバーヘッドプレス", "ダンベルショルダープレス", "サイドレイズ"],
-  背中: ["ラットプルダウン", "シーテッドロウ", "ローロウ", "リアデルトフライ"],
-  "脚・下半身": [
-    "スクワット",
-    "デッドリフト",
-    "ルーマニアンデッドリフト",
-    "レッグプレス",
-    "レッグカール",
-    "レッグエクステンション",
-  ],
-  腕: ["ケーブルカール", "ハンマーカール", "オーバーヘッドエクステンション"],
-  腹: ["ケーブルクランチ", "アブローラー"],
-  有酸素: ["ウォーキング", "バイク"],
-  その他: ["ロータリートルソー"],
-};
-
-const CARDIO_BODY_PART = "有酸素";
-
-// ==============================
-// ローカルストレージ関連
-// ==============================
-const STORAGE_KEY = "trainingLog_v3";
-const CUSTOM_EXERCISE_KEY = "trainingCustomExercises_v3";
-
-function loadRecords() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch (e) {
-    console.warn("loadRecords failed:", e);
-    return [];
-  }
-}
-
-function saveLogsToLocal(logs) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
-  } catch (e) {
-    console.error("saveLogsToLocal failed:", e);
-  }
-}
-
-/** @typedef {{ name: string; bodyPart: string }} CustomExercise */
-
-function loadCustomExercises() {
-  try {
-    const raw = localStorage.getItem(CUSTOM_EXERCISE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn("loadCustomExercises failed:", e);
-    return [];
-  }
-}
-
-function saveCustomExercises(list) {
-  try {
-    localStorage.setItem(CUSTOM_EXERCISE_KEY, JSON.stringify(list));
-  } catch (e) {
-    console.error("saveCustomExercises failed:", e);
-  }
-}
-
-function getCustomExercisesFor(bodyPart) {
-  const all = loadCustomExercises();
-  return all.filter((c) => c.bodyPart === bodyPart).map((c) => c.name);
-}
-
-function getAllExerciseNames() {
-  const set = new Set();
-  BODY_PARTS.forEach((bp) => {
-    (DEFAULT_EXERCISES[bp] || []).forEach((name) => set.add(name));
-  });
-  loadCustomExercises().forEach((c) => set.add(c.name));
-  return Array.from(set);
-}
-
-function getCardioExerciseNames() {
-  const defaults = DEFAULT_EXERCISES[CARDIO_BODY_PART] || [];
-  const customs = getCustomExercisesFor(CARDIO_BODY_PART);
-  return [...defaults, ...customs];
-}
-
-function isCardioExercise(exerciseName) {
-  return getCardioExerciseNames().includes(exerciseName);
-}
-
-// ==============================
-// ユーティリティ
-// ==============================
-function estimate1RM(weight, reps) {
-  if (!weight || !reps) return null;
-  const rm = weight * (1 + reps / 30);
-  return Math.round(rm * 10) / 10;
-}
-
-function isWithinRange(dateStr, rangeValue) {
-  if (!dateStr) return false;
-  if (rangeValue === "all") return true;
-
-  const days = parseInt(rangeValue, 10);
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
-
-  const today = new Date();
-  const diffMs = today - d;
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  return diffDays <= days;
-}
-
-function getExerciseSessions(exerciseName, rangeValue) {
-  // 有酸素は 1RM グラフ・統計の対象外
-  if (isCardioExercise(exerciseName)) return [];
-
-  const filteredLogs = logs.filter(
-    (log) => log.exercise === exerciseName && isWithinRange(log.date, rangeValue),
-  );
-
-  if (filteredLogs.length === 0) return [];
-
-  const map = /** @type {Record<string, TrainingLog[]>} */ ({});
-  filteredLogs.forEach((log) => {
-    if (!map[log.date]) map[log.date] = [];
-    map[log.date].push(log);
-  });
-
-  const dates = Object.keys(map).sort();
-
-  return dates.map((date) => {
-    const sets = map[date]
-      .slice()
-      .sort((a, b) => (a.setNo || 0) - (b.setNo || 0));
-
-    let topSet = sets[0];
-    sets.forEach((s) => {
-      if (
-        s.weight > topSet.weight ||
-        (s.weight === topSet.weight && s.reps > topSet.reps)
-      ) {
-        topSet = s;
-      }
-    });
-
-    const top1RM = estimate1RM(topSet.weight, topSet.reps) ?? 0;
-    const volume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
-
-    return { date, sets, topSet, top1RM, volume };
-  });
-}
-
-function getTodayString() {
-  const today = new Date();
-  return today.toISOString().slice(0, 10);
-}
-
-function setDefaultDate() {
-  const dateInput = /** @type {HTMLInputElement | null} */ (
-    document.getElementById("date")
-  );
-  if (!dateInput) return;
-  if (!dateInput.value) {
-    dateInput.value = getTodayString();
-  }
-}
-
-// ==============================
-// DOM 要素
-// ==============================
-const form = document.getElementById("log-form");
-const list = document.getElementById("log-list");
-const exerciseSelectForGraph = document.getElementById("exercise-select");
-const rangeSelect = document.getElementById("range-select");
-const historyDiv = document.getElementById("history");
-const statsDiv = document.getElementById("stats");
-const todayBtn = document.getElementById("today-btn");
-const copyFirstSetBtn = document.getElementById("copy-first-set-btn");
-const dateSessionSelect = document.getElementById("date-session-select");
-const dateSessionSummary = document.getElementById("date-session-summary");
-const exerciseSelect = document.getElementById("exercise");
-const customExInput = document.getElementById("custom-ex-input");
-const addCustomExBtn = document.getElementById("add-custom-ex-btn");
-
-const bodyPartButtons = document.querySelectorAll(".body-part-btn");
-
-let currentBodyPart = "胸";
-
-// 部位ボタンのクリックで active 切り替え & 種目セレクト更新
-bodyPartButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const bodyPart = btn.getAttribute("data-body-part");
-    if (!bodyPart) return;
-    currentBodyPart = bodyPart;
-
-    bodyPartButtons.forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    renderExerciseOptionsForForm();
-  });
-});
-
-let rmChart = null;
-let logs = loadRecords();
-
-// ==============================
-// フォーム用 種目セレクト描画
-// ==============================
-function renderExerciseOptionsForForm() {
-  const select = /** @type {HTMLSelectElement} */ (exerciseSelect);
-  if (!select) return;
-
-  select.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "種目を選択";
-  select.appendChild(placeholder);
-
-  const defaults = DEFAULT_EXERCISES[currentBodyPart] || [];
-  const customs = getCustomExercisesFor(currentBodyPart);
-  const all = [...defaults, ...customs];
-
-  all.forEach((name) => {
+  list.forEach(name=>{
     const opt = document.createElement("option");
     opt.value = name;
     opt.textContent = name;
-    select.appendChild(opt);
+    exSelect.appendChild(opt);
   });
 
-  // 部位を変えたらいったん選択解除し、フォーム表示をリセット
-  select.value = "";
-  updateFormByExercise();
+  // 可能なら直前の選択を維持
+  const prev = localStorage.getItem("_last_exercise") || "";
+  if(prev && list.includes(prev)) exSelect.value = prev;
+
+  // それでも空なら先頭
+  if(!exSelect.value) exSelect.value = list[0];
+
+  localStorage.setItem("_last_exercise", exSelect.value);
 }
 
-// ==============================
-// フォーム表示切り替え（筋トレ / 有酸素）
-// ==============================
-function updateFormByExercise() {
-  const select = /** @type {HTMLSelectElement} */ (
-    document.getElementById("exercise")
-  );
-  if (!select) return;
-
-  const ex = select.value;
-  const isCardio = isCardioExercise(ex);
-
-  // 筋トレ用（セット・重量・回数・RPE）
-  const strengthIds = ["setNo", "weight", "reps", "rpe"];
-  strengthIds.forEach((id) => {
-    const input = /** @type {HTMLInputElement | null} */ (
-      document.getElementById(id)
-    );
-    if (!input) return;
-    const label = input.closest("label");
-    if (!label) return;
-    label.style.display = isCardio ? "none" : "flex";
-  });
-
-  // 有酸素用（距離・時間・速さ）
-  const cardioIds = ["cardio-distance", "cardio-duration", "cardio-speed"];
-  cardioIds.forEach((id) => {
-    const input = /** @type {HTMLInputElement | null} */ (
-      document.getElementById(id)
-    );
-    if (!input) return;
-    const label = input.closest("label");
-    if (!label) return;
-    label.style.display = isCardio ? "flex" : "none";
-  });
-
-  const cardioRow = document.getElementById("cardio-fields");
-  if (cardioRow) {
-    cardioRow.style.display = isCardio ? "grid" : "none";
-  }
+function getExerciseMeta(name){
+  return exMaster.find(x=>x.name === name) || null;
 }
 
-// ==============================
-// バリデーション（集中管理）
-// ==============================
-function validateForm({ date, exercise, isCardio, weight, reps }) {
-  if (!date || !exercise) {
-    return "日付・種目は必須です。";
-  }
+function syncFieldsByExercise(){
+  const meta = getExerciseMeta(exSelect.value);
+  const isCardio = meta?.type === "有酸素";
 
-  // 筋トレ種目のみ、重量・回数を必須にする
-  if (!isCardio && (!weight || !reps)) {
-    return "筋トレ種目では、重量と回数が必須です。";
-  }
-
-  // 有酸素は距離・時間・速さすべて任意
-  return null;
+  strengthFields.style.display = isCardio ? "none" : "";
+  cardioFields.style.display = isCardio ? "" : "none";
 }
 
-// ==============================
-// 一覧・グラフなどの再描画
-// ==============================
-function renderAll() {
-  renderList();
-  updateExerciseOptionsForGraph();
-  updateTrainingDateOptions();
-
-  const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
-  const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
-
-  if (ex && !isCardioExercise(ex)) {
-    updateRmChart(ex, range);
-    renderStats(ex, range);
-    renderHistory(ex, range);
-  } else {
-    if (rmChart) {
-      rmChart.destroy();
-      rmChart = null;
-    }
-    statsDiv.textContent = "種目を選択すると統計が表示されます。";
-    historyDiv.textContent = "種目を選択すると履歴が表示されます。";
-  }
-
-  const selectedDate = /** @type {HTMLSelectElement} */ (
-    dateSessionSelect
-  ).value;
-  if (selectedDate) {
-    renderSessionByDate(selectedDate);
-  } else {
-    dateSessionSummary.textContent = "記録がある日付から選択してください。";
-  }
-}
-
-function renderList() {
-  list.innerHTML = "";
-
-  const sorted = logs.slice().sort((a, b) => {
-    if (a.date === b.date) return (a.setNo || 0) - (b.setNo || 0);
-    return a.date.localeCompare(b.date);
-  });
-
-  sorted.forEach((log) => {
-    const li = document.createElement("li");
-
-    const main = document.createElement("span");
-    main.className = "log-main-text";
-
-    let text;
-    if (isCardioExercise(log.exercise)) {
-      const parts = [];
-      if (log.distance != null) parts.push(`${log.distance}km`);
-      if (log.duration != null) parts.push(`${log.duration}分`);
-      if (log.speed != null) parts.push(`${log.speed}分/km`);
-      text = `${log.date} / ${log.exercise} / ${parts.join(" / ")}`;
-    } else {
-      text = `${log.date} / ${log.exercise} / ${log.setNo}セット目 / ${log.weight}kg × ${log.reps}回`;
-      if (log.rpe) {
-        text += ` (RPE ${log.rpe})`;
-      }
-    }
-
-    if (log.bodyWeight != null) {
-      text += ` / 体重 ${log.bodyWeight}kg`;
-    }
-    if (log.memo) {
-      text += ` - ${log.memo}`;
-    }
-    main.textContent = text;
-
-    const hint = document.createElement("span");
-    hint.className = "log-delete-hint";
-    hint.textContent = "タップで削除";
-
-    li.appendChild(main);
-    li.appendChild(hint);
-
-    li.addEventListener("click", () => {
-      if (confirm("この記録を削除しますか？")) {
-        const originalIndex = logs.findIndex(
-          (l) =>
-            l.date === log.date &&
-            l.exercise === log.exercise &&
-            l.setNo === log.setNo &&
-            l.weight === log.weight &&
-            l.reps === log.reps &&
-            l.rpe === log.rpe &&
-            l.memo === log.memo &&
-            (l.bodyWeight ?? null) === (log.bodyWeight ?? null) &&
-            (l.distance ?? null) === (log.distance ?? null) &&
-            (l.duration ?? null) === (log.duration ?? null) &&
-            (l.speed ?? null) === (log.speed ?? null),
-        );
-        if (originalIndex !== -1) {
-          logs.splice(originalIndex, 1);
-          saveLogsToLocal(logs);
-          renderAll();
-        }
-      }
+// =====================
+// RPE
+// =====================
+function renderRpeButtons(){
+  rpeGrid.innerHTML = "";
+  for(let r=6; r<=10.0001; r+=0.5){
+    const val = Math.round(r*10)/10;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rpe-btn";
+    btn.textContent = String(val);
+    btn.addEventListener("click", ()=>{
+      selectedRpe = val;
+      Array.from(document.querySelectorAll(".rpe-btn")).forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
     });
-
-    list.appendChild(li);
-  });
+    rpeGrid.appendChild(btn);
+  }
 }
 
-function updateExerciseOptionsForGraph() {
-  const exercises = [
-    ...new Set(
-      logs
-        .filter((log) => !isCardioExercise(log.exercise))
-        .map((log) => log.exercise)
-        .filter((name) => !!name),
-    ),
-  ];
+// =====================
+// 保存
+// =====================
+function onSave(){
+  saveHint.textContent = "";
 
-  const current = /** @type {HTMLSelectElement} */ (
-    exerciseSelectForGraph
-  ).value;
-  exerciseSelectForGraph.innerHTML = "";
+  const date = dateInput.value || today();
+  const internalPart = PART_KEY_MAP[currentPartUi] || currentPartUi;
+  const exercise = exSelect.value;
+  const meta = getExerciseMeta(exercise);
+  const type = meta?.type || "筋トレ";
 
-  if (exercises.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "まだ記録がありません";
-    exerciseSelectForGraph.appendChild(option);
+  if(!exercise){
+    alert("種目を選択してください");
     return;
   }
 
-  exercises.forEach((name) => {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name;
-    exerciseSelectForGraph.appendChild(option);
-  });
+  const createdAt = Date.now();
 
-  if (current && exercises.includes(current)) {
-    exerciseSelectForGraph.value = current;
-  } else if (!exerciseSelectForGraph.value && exercises.length > 0) {
-    exerciseSelectForGraph.value = exercises[0];
+  /** @type {any} */
+  const log = {
+    id: cryptoRandomId(),
+    createdAt,
+    date,
+    part: internalPart,
+    type,
+    exercise,
+    setNo: currentSetNo,
+    bodyWeight: bodyWeightInput.value ? Number(bodyWeightInput.value) : null,
+    memo: memoInput.value ? String(memoInput.value) : "",
+    weight: null,
+    reps: null,
+    rpe: null,
+    distance: null,
+    duration: null,
+    speed: null,
+  };
+
+  if(type === "有酸素"){
+    // 有酸素
+    const dist = distanceInput.value ? Number(distanceInput.value) : null;
+    const dur = durationInput.value ? Number(durationInput.value) : null;
+    const spd = speedInput.value ? String(speedInput.value).trim() : "";
+
+    // 有酸素は「距離or時間」どちらかは欲しい
+    if(dist == null && dur == null){
+      alert("有酸素は距離(km)か時間(分)のどちらかを入力してください");
+      return;
+    }
+
+    log.distance = dist;
+    log.duration = dur;
+    log.speed = spd || null;
+
+    // 筋トレ欄は 0 扱いにしない（CSVや表示で混乱する）
+    log.weight = null;
+    log.reps = null;
+    log.rpe = null;
+
+  } else {
+    // 筋トレ
+    const w = weightInput.value ? Number(weightInput.value) : null;
+    const r = repsInput.value ? Number(repsInput.value) : null;
+
+    if(w == null || r == null || !w || !r){
+      alert("筋トレは重量と回数を入力してください");
+      return;
+    }
+
+    log.weight = w;
+    log.reps = r;
+    log.rpe = selectedRpe;
+
+    // 有酸素欄は null
+    log.distance = null;
+    log.duration = null;
+    log.speed = null;
+  }
+
+  logs.push(log);
+  persistLogs();
+
+  // 次セットへ
+  currentSetNo += 1;
+  setNoEl.textContent = String(currentSetNo);
+
+  // 入力の一部だけクリア（体重は残す）
+  weightInput.value = "";
+  repsInput.value = "";
+  distanceInput.value = "";
+  durationInput.value = "";
+  speedInput.value = "";
+
+  selectedRpe = null;
+  Array.from(document.querySelectorAll(".rpe-btn")).forEach(b=>b.classList.remove("active"));
+
+  saveHint.textContent = "✅ 記録しました";
+
+  // 履歴・分析更新
+  renderHistory();
+  renderAnalysisOptions();
+  renderAnalysis();
+  renderRecent();
+}
+
+// =====================
+// 直近表示（同種目）
+// =====================
+function renderRecent(){
+  const ex = exSelect.value;
+  if(!ex){
+    recentBox.style.display = "none";
+    return;
+  }
+
+  // 同種目の直近（今選択日以前で、createdAt降順）
+  const list = logs
+    .filter(l=>l.exercise === ex)
+    .slice()
+    .sort((a,b)=> (b.createdAt||0) - (a.createdAt||0))
+    .slice(0, 1);
+
+  if(list.length === 0){
+    recentBox.style.display = "none";
+    return;
+  }
+
+  recentBox.style.display = "";
+  recentList.innerHTML = "";
+  const l = list[0];
+
+  const box = document.createElement("div");
+  box.className = "exercise-card";
+  const left = `${l.date} / ${l.exercise}`;
+  let mid = "";
+  if(l.type === "有酸素"){
+    const parts = [];
+    if(l.distance != null) parts.push(`${l.distance}km`);
+    if(l.duration != null) parts.push(`${l.duration}分`);
+    if(l.speed) parts.push(`速度 ${l.speed}`);
+    mid = parts.join(" / ");
+  } else {
+    mid = `${l.weight}kg × ${l.reps}回` + (l.rpe != null ? `  (RPE ${l.rpe})` : "");
+  }
+
+  box.innerHTML = `<div class="exercise-head"><div>${left}</div><span class="pill">直近</span></div><div style="font-weight:900">${mid}</div>`;
+  recentList.appendChild(box);
+}
+
+// =====================
+// 履歴（一覧）
+// =====================
+function renderHistory(){
+  // 日付ごとに集計
+  const byDate = new Map();
+  for(const l of logs){
+    if(!l.date) continue;
+    if(!byDate.has(l.date)) byDate.set(l.date, []);
+    byDate.get(l.date).push(l);
+  }
+
+  const dates = Array.from(byDate.keys()).sort((a,b)=> b.localeCompare(a));
+
+  historyList.innerHTML = "";
+  if(dates.length === 0){
+    historyList.innerHTML = `<div class="hint">まだ記録がありません。</div>`;
+    return;
+  }
+
+  for(const d of dates){
+    const items = byDate.get(d)
+      .slice()
+      // 同日内は入力順（createdAt昇順）→ setNo昇順で安定
+      .sort((a,b)=>{
+        const ca = a.createdAt || 0;
+        const cb = b.createdAt || 0;
+        if(ca !== cb) return ca - cb;
+        return (a.setNo||0) - (b.setNo||0);
+      });
+
+    const setCount = items.length;
+    const cardioCount = items.filter(x=>x.type === "有酸素").length;
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      <div class="card-left">
+        <div class="cal">📅</div>
+        <div style="min-width:0">
+          <div class="card-title">${formatDateJp(d)}</div>
+          <div class="card-sub">${setCount} セット${cardioCount ? ` / 有酸素 ${cardioCount}件` : ""}</div>
+        </div>
+      </div>
+      <div class="chev">›</div>
+    `;
+
+    card.addEventListener("click", ()=>{
+      openDetail(d);
+    });
+
+    historyList.appendChild(card);
   }
 }
 
-function updateTrainingDateOptions() {
-  const dates = [
-    ...new Set(logs.map((log) => log.date).filter((d) => !!d)),
-  ].sort((a, b) => b.localeCompare(a));
+// =====================
+// 履歴（詳細）
+// =====================
+function openDetail(date){
+  currentDetailDate = date;
+  detailTitle.textContent = formatDateJp(date);
 
-  const selectEl = /** @type {HTMLSelectElement} */ (dateSessionSelect);
-  const current = selectEl.value;
+  // 同日のログを入力順に並べる（筋トレ/有酸素混在でも順序は崩さない）
+  const items = logs
+    .filter(l=>l.date === date)
+    .slice()
+    .sort((a,b)=>{
+      const ca = a.createdAt || 0;
+      const cb = b.createdAt || 0;
+      if(ca !== cb) return ca - cb;
+      return (a.setNo||0) - (b.setNo||0);
+    });
 
-  selectEl.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = dates.length ? "日付を選択" : "まだ記録がありません";
-  selectEl.appendChild(placeholder);
+  // 種目ごと（ただし順序は最初に出現した順）
+  const order = [];
+  const map = new Map();
+  for(const l of items){
+    if(!map.has(l.exercise)){
+      map.set(l.exercise, []);
+      order.push(l.exercise);
+    }
+    map.get(l.exercise).push(l);
+  }
 
-  dates.forEach((d) => {
-    const option = document.createElement("option");
-    option.value = d;
-    option.textContent = d;
-    selectEl.appendChild(option);
+  detailBody.innerHTML = "";
+
+  // 体重（あれば最初の1件から）
+  const bw = items.find(x=>x.bodyWeight != null)?.bodyWeight ?? null;
+  if(bw != null){
+    const p = document.createElement("div");
+    p.className = "pill";
+    p.textContent = `体重 ${bw} kg`;
+    p.style.margin = "0 0 10px";
+    detailBody.appendChild(p);
+  }
+
+  for(const ex of order){
+    const sets = map.get(ex)
+      .slice()
+      .sort((a,b)=>{
+        const ca = a.createdAt || 0;
+        const cb = b.createdAt || 0;
+        if(ca !== cb) return ca - cb;
+        return (a.setNo||0) - (b.setNo||0);
+      });
+
+    const box = document.createElement("div");
+    box.className = "exercise-card";
+
+    const head = document.createElement("div");
+    head.className = "exercise-head";
+    head.innerHTML = `<div>${ex}</div><span class="pill">${sets[0]?.type || ""}</span>`;
+    box.appendChild(head);
+
+    // 表示（入力順）
+    for(const s of sets){
+      const row = document.createElement("div");
+      row.className = "set-row-view";
+
+      const left = document.createElement("div");
+      left.className = "set-left";
+      left.textContent = s.type === "有酸素" ? "—" : `セット${s.setNo}`;
+
+      const mid = document.createElement("div");
+      mid.className = "set-mid";
+      if(s.type === "有酸素"){
+        const parts = [];
+        if(s.distance != null) parts.push(`${s.distance}km`);
+        if(s.duration != null) parts.push(`${s.duration}分`);
+        if(s.speed) parts.push(`速度 ${s.speed}`);
+        mid.textContent = parts.join("  ");
+      } else {
+        mid.textContent = `${s.weight}kg × ${s.reps}回`;
+      }
+
+      const right = document.createElement("div");
+      right.className = "set-right";
+      if(s.type === "有酸素"){
+        right.textContent = "";
+      } else {
+        right.textContent = s.rpe != null ? `RPE ${s.rpe}` : "";
+      }
+
+      row.appendChild(left);
+      row.appendChild(mid);
+      row.appendChild(right);
+      box.appendChild(row);
+
+      if(s.memo){
+        const memo = document.createElement("div");
+        memo.style.color = "#94a3b8";
+        memo.style.fontWeight = "800";
+        memo.style.marginTop = "6px";
+        memo.textContent = `メモ: ${s.memo}`;
+        box.appendChild(memo);
+      }
+    }
+
+    detailBody.appendChild(box);
+  }
+
+  showPage("detail");
+}
+
+function copyDetailText(){
+  if(!currentDetailDate) return;
+
+  const items = logs
+    .filter(l=>l.date === currentDetailDate)
+    .slice()
+    .sort((a,b)=>{
+      const ca = a.createdAt || 0;
+      const cb = b.createdAt || 0;
+      if(ca !== cb) return ca - cb;
+      return (a.setNo||0) - (b.setNo||0);
+    });
+
+  const lines = [];
+  lines.push(formatDateJp(currentDetailDate));
+
+  const bw = items.find(x=>x.bodyWeight != null)?.bodyWeight ?? null;
+  if(bw != null) lines.push(`体重: ${bw}kg`);
+
+  // 種目ごと（最初に出現した順）
+  const order = [];
+  const map = new Map();
+  for(const l of items){
+    if(!map.has(l.exercise)){
+      map.set(l.exercise, []);
+      order.push(l.exercise);
+    }
+    map.get(l.exercise).push(l);
+  }
+
+  for(const ex of order){
+    lines.push("");
+    lines.push(`■ ${ex}`);
+
+    const sets = map.get(ex)
+      .slice()
+      .sort((a,b)=>{
+        const ca = a.createdAt || 0;
+        const cb = b.createdAt || 0;
+        if(ca !== cb) return ca - cb;
+        return (a.setNo||0) - (b.setNo||0);
+      });
+
+    for(const s of sets){
+      if(s.type === "有酸素"){
+        const parts = [];
+        if(s.distance != null) parts.push(`${s.distance}km`);
+        if(s.duration != null) parts.push(`${s.duration}分`);
+        if(s.speed) parts.push(`速度 ${s.speed}`);
+        lines.push(`- 有酸素: ${parts.join(" / ")}`);
+      } else {
+        lines.push(`- セット${s.setNo}: ${s.weight}kg×${s.reps}回${s.rpe!=null?` (RPE ${s.rpe})`:""}`);
+      }
+      if(s.memo) lines.push(`  メモ: ${s.memo}`);
+    }
+  }
+
+  navigator.clipboard.writeText(lines.join("
+"))
+    .then(()=> alert("コピーしました"))
+    .catch(()=> alert("コピーに失敗しました（ブラウザ権限を確認）"));
+}
+
+// =====================
+// 分析
+// =====================
+function renderAnalysisOptions(){
+  // 筋トレ種目のみ
+  const exSet = new Set();
+  logs.forEach(l=>{
+    if(l.type === "筋トレ" && l.exercise) exSet.add(l.exercise);
   });
 
-  if (current && dates.includes(current)) {
-    selectEl.value = current;
-  } else if (!current && dates.length > 0) {
-    selectEl.value = dates[0];
+  const list = Array.from(exSet).sort((a,b)=>a.localeCompare(b, "ja"));
+  const prev = analysisExercise.value;
+
+  analysisExercise.innerHTML = "";
+
+  if(list.length === 0){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "筋トレ記録がありません";
+    analysisExercise.appendChild(opt);
+    return;
+  }
+
+  list.forEach(name=>{
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    analysisExercise.appendChild(opt);
+  });
+
+  if(prev && list.includes(prev)){
+    analysisExercise.value = prev;
   }
 }
 
-function updateRmChart(exerciseName, rangeValue) {
-  if (!exerciseName || isCardioExercise(exerciseName)) return;
+function renderAnalysis(){
+  const ex = analysisExercise.value;
+  analysisHistory.innerHTML = "";
 
-  const sessions = getExerciseSessions(exerciseName, rangeValue);
-  const logsForChart = sessions.flatMap((s) =>
-    s.sets.map((set) => ({
-      label: `${s.date} (${set.setNo}セット目)`,
-      rm: estimate1RM(set.weight, set.reps),
-    })),
-  );
+  if(!ex){
+    analysisHint.textContent = "筋トレ記録がありません。";
+    destroyChart();
+    return;
+  }
 
-  const labels = logsForChart.map((x) => x.label);
-  const data = logsForChart.map((x) => x.rm);
+  const items = logs
+    .filter(l=>l.exercise === ex && l.type === "筋トレ")
+    .slice()
+    .sort((a,b)=>{
+      // 日付→入力順
+      if(a.date !== b.date) return a.date.localeCompare(b.date);
+      const ca = a.createdAt || 0;
+      const cb = b.createdAt || 0;
+      if(ca !== cb) return ca - cb;
+      return (a.setNo||0) - (b.setNo||0);
+    });
 
+  if(items.length === 0){
+    analysisHint.textContent = "この種目の記録がありません。";
+    destroyChart();
+    return;
+  }
+
+  // セッション（同日まとめ、トップセットは最大重量→同重量なら回数）
+  const byDate = new Map();
+  for(const l of items){
+    if(!byDate.has(l.date)) byDate.set(l.date, []);
+    byDate.get(l.date).push(l);
+  }
+
+  const dates = Array.from(byDate.keys()).sort((a,b)=>a.localeCompare(b));
+  const sessions = dates.map(d=>{
+    const sets = byDate.get(d).slice().sort((a,b)=>{
+      const ca = a.createdAt || 0;
+      const cb = b.createdAt || 0;
+      if(ca !== cb) return ca - cb;
+      return (a.setNo||0) - (b.setNo||0);
+    });
+
+    let top = sets[0];
+    for(const s of sets){
+      if(s.weight > top.weight || (s.weight === top.weight && s.reps > top.reps)) top = s;
+    }
+
+    const top1rm = estimate1RM(top.weight, top.reps);
+    return { date:d, top, top1rm, sets };
+  });
+
+  // グラフ
+  const labels = sessions.map(s=>s.date);
+  const data = sessions.map(s=>s.top1rm);
+
+  drawChart(labels, data, `${ex} 推定1RM（トップセット）`);
+  analysisHint.textContent = `直近 ${Math.min(8, sessions.length)} セッションを表示（トップセット）`;
+
+  // 直近履歴
+  const recent = sessions.slice().reverse().slice(0, 8);
+  for(const s of recent){
+    const box = document.createElement("div");
+    box.className = "exercise-card";
+
+    const head = document.createElement("div");
+    head.className = "exercise-head";
+    head.innerHTML = `<div>${s.date}</div><span class="pill">1RM ${s.top1rm}kg</span>`;
+    box.appendChild(head);
+
+    s.sets.forEach(x=>{
+      const row = document.createElement("div");
+      row.className = "set-row-view";
+
+      row.innerHTML = `
+        <div class="set-left">セット${x.setNo}</div>
+        <div class="set-mid">${x.weight}kg × ${x.reps}回</div>
+        <div class="set-right">${x.rpe!=null?`RPE ${x.rpe}`:""}</div>
+      `;
+      box.appendChild(row);
+    });
+
+    analysisHistory.appendChild(box);
+  }
+}
+
+function estimate1RM(weight, reps){
+  if(!weight || !reps) return 0;
+  const rm = weight * (1 + reps/30);
+  return Math.round(rm*10)/10;
+}
+
+function drawChart(labels, data, title){
   const ctx = document.getElementById("rmChart").getContext("2d");
-
-  if (rmChart) {
-    rmChart.destroy();
-  }
+  destroyChart();
 
   rmChart = new Chart(ctx, {
     type: "line",
     data: {
       labels,
-      datasets: [
-        {
-          label: `${exerciseName} の推定 1RM`,
-          data,
-          tension: 0.2,
-          pointRadius: 3,
-        },
-      ],
+      datasets: [{
+        label: title,
+        data,
+        tension: 0.2,
+        pointRadius: 3,
+      }]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          labels: {
-            boxWidth: 16,
-          },
-        },
+        legend: { labels: { boxWidth: 14 } },
       },
       scales: {
-        y: {
-          title: {
-            display: true,
-            text: "推定 1RM (kg)",
-          },
-        },
-        x: {
-          title: {
-            display: true,
-            text: "日付 / セット",
-          },
-        },
-      },
-    },
-  });
-}
-
-function renderStats(exerciseName, rangeValue) {
-  statsDiv.innerHTML = "";
-
-  if (!exerciseName || isCardioExercise(exerciseName)) {
-    statsDiv.textContent = "種目を選択すると統計が表示されます。";
-    return;
-  }
-
-  const sessions = getExerciseSessions(exerciseName, rangeValue);
-  if (sessions.length === 0) {
-    statsDiv.textContent = "選択中の期間に記録がありません。";
-    return;
-  }
-
-  const max1RM = Math.max(...sessions.map((s) => s.top1RM));
-  const avg1RM =
-    Math.round(
-      (sessions.reduce((sum, s) => sum + s.top1RM, 0) / sessions.length) * 10,
-    ) / 10;
-
-  const avgVolume = Math.round(
-    sessions.reduce((sum, s) => sum + s.volume, 0) / sessions.length,
-  );
-
-  const p1 = document.createElement("p");
-  p1.textContent = `最大 1RM：${max1RM} kg`;
-
-  const p2 = document.createElement("p");
-  p2.textContent = `平均 1RM（トップセット）：${avg1RM} kg`;
-
-  const p3 = document.createElement("p");
-  p3.textContent = `平均ボリューム（1 セッションあたり）：${avgVolume} kg×rep`;
-
-  statsDiv.appendChild(p1);
-  statsDiv.appendChild(p2);
-  statsDiv.appendChild(p3);
-}
-
-function formatDiff(value, unit) {
-  if (value > 0) return `+${value}${unit}`;
-  if (value < 0) return `${value}${unit}`;
-  return `±0${unit}`;
-}
-
-function renderHistory(exerciseName, rangeValue) {
-  historyDiv.innerHTML = "";
-
-  if (!exerciseName || isCardioExercise(exerciseName)) {
-    historyDiv.textContent = "種目を選択すると履歴が表示されます。";
-    return;
-  }
-
-  const sessions = getExerciseSessions(exerciseName, rangeValue);
-  if (sessions.length === 0) {
-    historyDiv.textContent = "この期間には記録がありません。";
-    return;
-  }
-
-  let shown = 0;
-  for (let i = sessions.length - 1; i >= 0 && shown < 3; i--, shown++) {
-    const s = sessions[i];
-    const prev = i > 0 ? sessions[i - 1] : null;
-
-    const title = document.createElement("h3");
-    title.textContent = s.date;
-    historyDiv.appendChild(title);
-
-    const ul = document.createElement("ul");
-    s.sets.forEach((log) => {
-      let text = `${log.setNo}セット目: ${log.weight}kg × ${log.reps}回`;
-      if (log.rpe) text += ` (RPE ${log.rpe})`;
-      if (log.memo) text += ` - ${log.memo}`;
-      const li = document.createElement("li");
-      li.textContent = text;
-      ul.appendChild(li);
-    });
-    historyDiv.appendChild(ul);
-
-    const p = document.createElement("p");
-    if (prev) {
-      const diffW = s.topSet.weight - prev.topSet.weight;
-      const diffR = s.topSet.reps - prev.topSet.reps;
-      const diffRM = Math.round((s.top1RM - prev.top1RM) * 10) / 10;
-      const diffVol = s.volume - prev.volume;
-
-      p.textContent =
-        `前回比（トップセット基準）: ` +
-        `重量 ${formatDiff(diffW, "kg")} / ` +
-        `回数 ${formatDiff(diffR, "回")} / ` +
-        `1RM ${formatDiff(diffRM, "kg")} / ` +
-        `ボリューム ${formatDiff(diffVol, "kg×rep")}`;
-    } else {
-      p.textContent = "この種目の初回セッションです。";
+        y: { title: { display:true, text:"推定1RM (kg)" } },
+        x: { title: { display:true, text:"日付" } },
+      }
     }
-    historyDiv.appendChild(p);
-  }
-}
-
-function renderSessionByDate(dateStr) {
-  dateSessionSummary.innerHTML = "";
-  if (!dateStr) {
-    dateSessionSummary.textContent = "記録がある日付から選択してください。";
-    return;
-  }
-
-  const logsForDate = logs
-    .filter((l) => l.date === dateStr)
-    .sort((a, b) => {
-      if (a.exercise === b.exercise) return (a.setNo || 0) - (b.setNo || 0);
-      return a.exercise.localeCompare(b.exercise);
-    });
-
-  if (logsForDate.length === 0) {
-    dateSessionSummary.textContent = "この日付の記録はありません。";
-    return;
-  }
-
-  const bwLog = logsForDate.find((l) => l.bodyWeight != null);
-  if (bwLog && bwLog.bodyWeight != null) {
-    const pBw = document.createElement("p");
-    pBw.textContent = `体重: ${bwLog.bodyWeight} kg`;
-    dateSessionSummary.appendChild(pBw);
-  }
-
-  const map = /** @type {Record<string, TrainingLog[]>} */ ({});
-  logsForDate.forEach((log) => {
-    if (!map[log.exercise]) map[log.exercise] = [];
-    map[log.exercise].push(log);
   });
-
-  Object.keys(map)
-    .sort()
-    .forEach((exercise) => {
-      const h3 = document.createElement("h3");
-      h3.textContent = exercise;
-      dateSessionSummary.appendChild(h3);
-
-      const ul = document.createElement("ul");
-      const cardio = isCardioExercise(exercise);
-
-      map[exercise]
-        .slice()
-        .sort((a, b) => (a.setNo || 0) - (b.setNo || 0))
-        .forEach((log) => {
-          let text;
-          if (cardio) {
-            const parts = [];
-            if (log.distance != null) parts.push(`${log.distance}km`);
-            if (log.duration != null) parts.push(`${log.duration}分`);
-            if (log.speed != null) parts.push(`${log.speed}分/km`);
-            text = parts.join(" / ");
-          } else {
-            text = `${log.setNo}セット目: ${log.weight}kg × ${log.reps}回`;
-            if (log.rpe) text += ` (RPE ${log.rpe})`;
-          }
-          if (log.memo) text += ` - ${log.memo}`;
-          const li = document.createElement("li");
-          li.textContent = text;
-          ul.appendChild(li);
-        });
-      dateSessionSummary.appendChild(ul);
-    });
 }
 
-// ==============================
-// Firestore 連携
-// ==============================
-async function saveLogToCloud(log) {
-  try {
-    await addDoc(collection(db, "trainingLogs"), log);
-    console.log("🔥 Firestore に保存成功:", log);
-  } catch (e) {
-    console.error("❌ Firestore 保存失敗:", e);
+function destroyChart(){
+  if(rmChart){
+    rmChart.destroy();
+    rmChart = null;
   }
 }
 
-async function loadLogsFromCloud() {
-  try {
-    const querySnapshot = await getDocs(collection(db, "trainingLogs"));
-    const loadedLogs = querySnapshot.docs.map((doc) => doc.data());
-    console.log("✅ Firestore から読み込み成功:", loadedLogs);
-    return loadedLogs;
-  } catch (e) {
-    console.error("❌ Firestore 読み込み失敗:", e);
+// =====================
+// 設定：種目マスタ
+// =====================
+function renderExerciseMaster(){
+  exerciseMaster.innerHTML = "";
+
+  // 部位ごと
+  const groups = new Map();
+  for(const ex of exMaster){
+    if(!groups.has(ex.part)) groups.set(ex.part, []);
+    groups.get(ex.part).push(ex);
+  }
+
+  const parts = Array.from(groups.keys()).sort((a,b)=>a.localeCompare(b, "ja"));
+
+  for(const part of parts){
+    const section = document.createElement("div");
+    section.className = "exercise-card";
+
+    const head = document.createElement("div");
+    head.className = "exercise-head";
+    head.innerHTML = `<div>${part}</div><span class="pill">${groups.get(part).length}種目</span>`;
+    section.appendChild(head);
+
+    const list = groups.get(part).slice().sort((a,b)=>a.name.localeCompare(b.name, "ja"));
+
+    for(const item of list){
+      const row = document.createElement("div");
+      row.className = "set-row-view";
+
+      const left = document.createElement("div");
+      left.className = "set-mid";
+      left.textContent = item.name;
+
+      const right = document.createElement("button");
+      right.type = "button";
+      right.className = "link-btn";
+      right.style.color = "#ef4444";
+      right.textContent = "削除";
+
+      right.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        if(!confirm(`「${item.name}」を削除しますか？`)) return;
+
+        // マスタから削除
+        exMaster = exMaster.filter(x=>x.name !== item.name);
+        saveExerciseMaster();
+
+        // 既存ログの種目名は残す（過去参照のため）。
+        // ここでログまで消すのは危険なのでやらない。
+
+        renderExerciseMaster();
+        refreshExerciseSelect();
+        renderAnalysisOptions();
+        renderAnalysis();
+      });
+
+      row.innerHTML = "";
+      const leftWrap = document.createElement("div");
+      leftWrap.style.display = "flex";
+      leftWrap.style.flexDirection = "column";
+      leftWrap.style.gap = "2px";
+      leftWrap.appendChild(left);
+
+      const sub = document.createElement("div");
+      sub.style.color = "#94a3b8";
+      sub.style.fontWeight = "800";
+      sub.style.fontSize = ".85rem";
+      sub.textContent = item.type;
+      leftWrap.appendChild(sub);
+
+      row.appendChild(leftWrap);
+      row.appendChild(right);
+      section.appendChild(row);
+    }
+
+    exerciseMaster.appendChild(section);
+  }
+}
+
+function openModal(){
+  modalHint.textContent = "";
+  newExName.value = "";
+  newExPart.value = currentPartUi;
+  newExType.value = (PART_KEY_MAP[currentPartUi] === "有酸素") ? "有酸素" : "筋トレ";
+  modal.style.display = "";
+}
+
+function closeModal(){
+  modal.style.display = "none";
+}
+
+function onAddExercise(){
+  modalHint.textContent = "";
+  const name = String(newExName.value || "").trim();
+  const partUi = newExPart.value;
+  const part = PART_KEY_MAP[partUi] || partUi;
+  const type = newExType.value;
+
+  if(!name){
+    modalHint.textContent = "種目名を入力してください";
+    return;
+  }
+
+  if(exMaster.some(x=>x.name === name)){
+    modalHint.textContent = "その種目名はすでに存在します";
+    return;
+  }
+
+  exMaster.push({ name, part, type });
+  saveExerciseMaster();
+
+  closeModal();
+
+  // UI反映
+  renderExerciseMaster();
+  refreshExerciseSelect();
+  renderAnalysisOptions();
+  renderAnalysis();
+}
+
+// =====================
+// CSV
+// =====================
+function exportCsv(){
+  const header = [
+    "createdAt",
+    "date",
+    "part",
+    "type",
+    "exercise",
+    "setNo",
+    "weight",
+    "reps",
+    "rpe",
+    "distance",
+    "duration",
+    "speed",
+    "bodyWeight",
+    "memo",
+  ];
+
+  // createdAt昇順（入力順）
+  const rows = logs
+    .slice()
+    .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0))
+    .map(l=>[
+      l.createdAt ?? "",
+      l.date ?? "",
+      l.part ?? "",
+      l.type ?? "",
+      l.exercise ?? "",
+      l.setNo ?? "",
+      l.weight ?? "",
+      l.reps ?? "",
+      l.rpe ?? "",
+      l.distance ?? "",
+      l.duration ?? "",
+      l.speed ?? "",
+      l.bodyWeight ?? "",
+      (l.memo ?? "").replace(/
+?
+/g, " "),
+    ]);
+
+  const csv = [header, ...rows]
+    .map(r=>r.map(escapeCsv).join(","))
+    .join("
+");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `training_logs_${today().replaceAll("-", "")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsv(v){
+  const s = String(v ?? "");
+  if(/[",
+]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
+  return s;
+}
+
+async function onCsvImport(){
+  const file = csvImport.files?.[0];
+  if(!file) return;
+
+  const text = await file.text();
+  const parsed = parseCsv(text);
+  if(parsed.length < 2){
+    alert("CSVの内容が不足しています");
+    csvImport.value = "";
+    return;
+  }
+
+  const header = parsed[0].map(x=>x.trim());
+  const idx = (name) => header.indexOf(name);
+
+  // 必須っぽい列
+  const iDate = idx("date");
+  const iExercise = idx("exercise");
+  if(iDate === -1 || iExercise === -1){
+    alert("CSVに date / exercise 列がありません");
+    csvImport.value = "";
+    return;
+  }
+
+  // 取り込み
+  let imported = 0;
+
+  for(let r=1; r<parsed.length; r++){
+    const row = parsed[r];
+    if(row.length === 0) continue;
+
+    const createdAt = Number(row[idx("createdAt")]) || Date.now();
+    const date = row[iDate] || "";
+    const exercise = row[iExercise] || "";
+
+    if(!date || !exercise) continue;
+
+    const log = {
+      id: cryptoRandomId(),
+      createdAt,
+      date,
+      part: row[idx("part")] || "",
+      type: row[idx("type")] || "筋トレ",
+      exercise,
+      setNo: Number(row[idx("setNo")]) || 1,
+      weight: toNullableNumber(row[idx("weight")]),
+      reps: toNullableNumber(row[idx("reps")]),
+      rpe: toNullableNumber(row[idx("rpe")]),
+      distance: toNullableNumber(row[idx("distance")]),
+      duration: toNullableNumber(row[idx("duration")]),
+      speed: row[idx("speed")] || null,
+      bodyWeight: toNullableNumber(row[idx("bodyWeight")]),
+      memo: row[idx("memo")] || "",
+    };
+
+    logs.push(log);
+    imported++;
+  }
+
+  persistLogs();
+  alert(`CSVを取り込みました：${imported}件`);
+  csvImport.value = "";
+
+  renderHistory();
+  renderAnalysisOptions();
+  renderAnalysis();
+}
+
+function toNullableNumber(v){
+  if(v == null) return null;
+  const s = String(v).trim();
+  if(!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+// ざっくりCSVパーサ（ダブルクォート対応）
+function parseCsv(text){
+  const rows = [];
+  let row = [];
+  let cur = "";
+  let inQ = false;
+
+  for(let i=0;i<text.length;i++){
+    const ch = text[i];
+
+    if(inQ){
+      if(ch === '"'){
+        const next = text[i+1];
+        if(next === '"'){
+          cur += '"';
+          i++;
+        } else {
+          inQ = false;
+        }
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+
+    if(ch === '"'){
+      inQ = true;
+      continue;
+    }
+
+    if(ch === ','){
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if(ch === '
+'){
+      row.push(cur.replace(/
+/g, ""));
+      rows.push(row);
+      row = [];
+      cur = "";
+      continue;
+    }
+
+    cur += ch;
+  }
+
+  // last
+  row.push(cur.replace(/
+/g, ""));
+  rows.push(row);
+
+  // 空行削除
+  return rows.filter(r=>!(r.length===1 && r[0].trim()===""));
+}
+
+// =====================
+// 永続化
+// =====================
+function loadLogs(){
+  try{
+    const raw = localStorage.getItem(STORAGE_LOGS);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  }catch{
     return [];
   }
 }
 
-// ==============================
-// イベント: フォーム送信
-// ==============================
-if (form) {
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-
-    const date = /** @type {HTMLInputElement} */ (
-      document.getElementById("date")
-    ).value;
-    const bodyWeightRaw = /** @type {HTMLInputElement} */ (
-      document.getElementById("bodyWeight")
-    ).value;
-    const exercise = /** @type {HTMLSelectElement} */ (
-      document.getElementById("exercise")
-    ).value;
-
-    const setNoInputEl = /** @type {HTMLInputElement} */ (
-      document.getElementById("setNo")
-    );
-    const weightInputEl = /** @type {HTMLInputElement} */ (
-      document.getElementById("weight")
-    );
-    const repsInputEl = /** @type {HTMLInputElement} */ (
-      document.getElementById("reps")
-    );
-    const rpeInputEl = /** @type {HTMLInputElement} */ (
-      document.getElementById("rpe")
-    );
-    const memoInputEl = /** @type {HTMLInputElement} */ (
-      document.getElementById("memo")
-    );
-
-    const setNo = Number(setNoInputEl?.value || "1") || 1;
-    let weight = Number(weightInputEl?.value || "0");
-    let reps = Number(repsInputEl?.value || "0");
-    const rpe = rpeInputEl?.value ?? "";
-    const memo = memoInputEl?.value ?? "";
-
-    const isCardio = isCardioExercise(exercise);
-
-    const cardioDistanceInput = /** @type {HTMLInputElement | null} */ (
-      document.getElementById("cardio-distance")
-    );
-    const cardioDurationInput = /** @type {HTMLInputElement | null} */ (
-      document.getElementById("cardio-duration")
-    );
-    const cardioSpeedInput = /** @type {HTMLInputElement | null} */ (
-      document.getElementById("cardio-speed")
-    );
-
-    const cardioDistance =
-      cardioDistanceInput && cardioDistanceInput.value
-        ? Number(cardioDistanceInput.value)
-        : null;
-    const cardioDuration =
-      cardioDurationInput && cardioDurationInput.value
-        ? Number(cardioDurationInput.value)
-        : null;
-    const cardioSpeed =
-      cardioSpeedInput && cardioSpeedInput.value
-        ? Number(cardioSpeedInput.value)
-        : null;
-
-    const validationMessage = validateForm({
-      date,
-      exercise,
-      isCardio,
-      weight,
-      reps,
-    });
-
-    if (validationMessage) {
-      alert(validationMessage);
-      return;
-    }
-
-    // 有酸素の場合は重量・回数は 0 扱い（1RM などの計算対象外）
-    if (isCardio) {
-      weight = 0;
-      reps = 0;
-    }
-
-    const bodyWeight = bodyWeightRaw ? Number(bodyWeightRaw) : null;
-
-    /** @type {TrainingLog} */
-    const newLog = {
-      date,
-      bodyWeight,
-      exercise,
-      setNo,
-      weight,
-      reps,
-      rpe: isCardio ? null : rpe || null,
-      memo: memo || "",
-      distance: cardioDistance,
-      duration: cardioDuration,
-      speed: cardioSpeed,
-    };
-
-    // ローカル / Firestore / シートの 3 か所に保存
-    logs.push(newLog);
-    saveLogsToLocal(logs); // localStorage
-    saveLogToCloud(newLog); // Firestore
-    sendLogToSheet(newLog); // Google スプレッドシート
-
-    // 次セット入力をしやすくする（体重はそのまま残す）
-    setNoInputEl.value = String(setNo + 1);
-
-    if (weightInputEl) weightInputEl.value = "";
-    if (repsInputEl) repsInputEl.value = "";
-    if (rpeInputEl) rpeInputEl.value = "";
-    if (memoInputEl) memoInputEl.value = "";
-    if (cardioDistanceInput) cardioDistanceInput.value = "";
-    if (cardioDurationInput) cardioDurationInput.value = "";
-    if (cardioSpeedInput) cardioSpeedInput.value = "";
-
-    renderAll();
-  });
+function persistLogs(){
+  localStorage.setItem(STORAGE_LOGS, JSON.stringify(logs));
 }
 
-// ==============================
-// イベント: ボタン類
-// ==============================
-if (todayBtn) {
-  todayBtn.addEventListener("click", () => {
-    const dateInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("date")
-    );
-    dateInput.value = getTodayString();
-  });
+function loadExerciseMaster(){
+  try{
+    const raw = localStorage.getItem(STORAGE_EX_MASTER);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if(Array.isArray(parsed) && parsed.length){
+      return parsed;
+    }
+  }catch{}
+
+  // 初期投入
+  localStorage.setItem(STORAGE_EX_MASTER, JSON.stringify(DEFAULT_EXERCISES));
+  return DEFAULT_EXERCISES.slice();
 }
 
-if (copyFirstSetBtn) {
-  copyFirstSetBtn.addEventListener("click", () => {
-    const dateInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("date")
-    );
-    const exerciseInput = /** @type {HTMLSelectElement} */ (
-      document.getElementById("exercise")
-    );
-    const setNoInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("setNo")
-    );
-    const weightInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("weight")
-    );
-    const repsInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("reps")
-    );
-    const rpeInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("rpe")
-    );
-    const memoInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("memo")
-    );
-    const bwInput = /** @type {HTMLInputElement} */ (
-      document.getElementById("bodyWeight")
-    );
-
-    const date = dateInput.value;
-    const exercise = exerciseInput.value;
-
-    if (isCardioExercise(exercise)) {
-      alert("有酸素種目では 1 セット目コピー機能は使用しません。");
-      return;
-    }
-
-    if (!date || !exercise) {
-      alert("先に日付と種目を選択し、1セット目を登録してください。");
-      return;
-    }
-
-    const sameLogs = logs.filter(
-      (l) => l.date === date && l.exercise === exercise,
-    );
-    if (sameLogs.length === 0) {
-      alert("この日付・種目の記録がまだありません。まず 1 セット目を追加してください。");
-      return;
-    }
-
-    const firstSet =
-      sameLogs.find((l) => l.setNo === 1) ||
-      sameLogs.reduce((min, l) => (l.setNo < min.setNo ? l : min), sameLogs[0]);
-
-    const nextSetNo =
-      sameLogs.reduce((max, l) => Math.max(max, l.setNo || 0), 0) + 1;
-
-    setNoInput.value = String(nextSetNo);
-    weightInput.value = String(firstSet.weight ?? "");
-    repsInput.value = String(firstSet.reps ?? "");
-    rpeInput.value = firstSet.rpe ?? "";
-    memoInput.value = firstSet.memo ?? "";
-    if (firstSet.bodyWeight != null) {
-      bwInput.value = String(firstSet.bodyWeight);
-    }
-  });
+function saveExerciseMaster(){
+  localStorage.setItem(STORAGE_EX_MASTER, JSON.stringify(exMaster));
 }
 
-if (addCustomExBtn && customExInput && exerciseSelect) {
-  addCustomExBtn.addEventListener("click", () => {
-    const input = /** @type {HTMLInputElement} */ (customExInput);
-    const select = /** @type {HTMLSelectElement} */ (exerciseSelect);
-    const name = input.value.trim();
-    if (!name) {
-      alert("新しい種目名を入力してください。");
-      return;
-    }
-
-    const existing = getAllExerciseNames();
-    if (existing.includes(name)) {
-      alert("その種目はすでに登録されています。");
-      select.value = name;
-      input.value = "";
-      updateFormByExercise();
-      return;
-    }
-
-    const stored = loadCustomExercises();
-    stored.push({ name, bodyPart: currentBodyPart });
-    saveCustomExercises(stored);
-
-    renderExerciseOptionsForForm();
-    select.value = name;
-    input.value = "";
-    updateFormByExercise();
-  });
+// =====================
+// util
+// =====================
+function today(){
+  return new Date().toISOString().slice(0,10);
 }
 
-// 部位ボタン: active 切り替え & 種目リスト更新
-bodyPartButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const bodyPart = btn.getAttribute("data-body-part");
-    if (!bodyPart) return;
-    currentBodyPart = bodyPart;
+function formatDateJp(dateStr){
+  // YYYY-MM-DD -> M月D日（曜）
+  const d = new Date(dateStr + "T00:00:00");
+  if(Number.isNaN(d.getTime())) return dateStr;
 
-    bodyPartButtons.forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    renderExerciseOptionsForForm();
-  });
-});
-
-// 種目変更時にフォーム切り替え
-if (exerciseSelect) {
-  exerciseSelect.addEventListener("change", updateFormByExercise);
+  const w = ["日","月","火","水","木","金","土"][d.getDay()];
+  return `${d.getMonth()+1}月${d.getDate()}日（${w}）`;
 }
 
-// グラフ用セレクト変更
-if (exerciseSelectForGraph) {
-  exerciseSelectForGraph.addEventListener("change", () => {
-    const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
-    const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
-    if (ex && !isCardioExercise(ex)) {
-      updateRmChart(ex, range);
-      renderStats(ex, range);
-      renderHistory(ex, range);
-    }
-  });
+function cryptoRandomId(){
+  if(typeof crypto !== "undefined" && crypto.getRandomValues){
+    const a = new Uint32Array(4);
+    crypto.getRandomValues(a);
+    return Array.from(a).map(x=>x.toString(16)).join("");
+  }
+  return String(Date.now()) + "_" + Math.random().toString(16).slice(2);
 }
-
-if (rangeSelect) {
-  rangeSelect.addEventListener("change", () => {
-    const ex = /** @type {HTMLSelectElement} */ (exerciseSelectForGraph).value;
-    const range = /** @type {HTMLSelectElement} */ (rangeSelect).value;
-    if (ex && !isCardioExercise(ex)) {
-      updateRmChart(ex, range);
-      renderStats(ex, range);
-      renderHistory(ex, range);
-    }
-  });
-}
-
-if (dateSessionSelect) {
-  dateSessionSelect.addEventListener("change", () => {
-    const selectedDate = /** @type {HTMLSelectElement} */ (
-      dateSessionSelect
-    ).value;
-    renderSessionByDate(selectedDate);
-  });
-}
-
-// 初期化
-function init() {
-  setDefaultDate();
-  renderExerciseOptionsForForm();
-  updateFormByExercise();
-  renderAll();
-}
-
-init();
-
