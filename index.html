@@ -4,520 +4,629 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>トレーニングログ</title>
+
+  <!-- グラフ用（分析タブで使用） -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    :root {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color-scheme: light dark;
+    :root{
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --panel2:#0b1020;
+      --border:#243043;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --accent:#22c55e;
+      --accentText:#04110a;
+      --danger:#ef4444;
+      --chip:#111a2e;
     }
 
-    body {
-      margin: 0;
-      padding: 0;
-      background: #111827;
-      color: #e5e7eb;
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP",sans-serif;
+      background:radial-gradient(1200px 600px at 15% 0%, #112247 0%, var(--bg) 55%);
+      color:var(--text);
     }
 
-    .container {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 16px;
+    .app{
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
     }
 
-    header {
-      margin-bottom: 16px;
+    .container{
+      width:100%;
+      max-width:720px;
+      margin:0 auto;
+      padding:16px 16px 92px; /* 下ナビ分 */
     }
 
-    h1 {
-      margin: 0 0 4px;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      background: linear-gradient(120deg, #22c55e, #06b6d4, #a855f7);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
     }
 
-    main {
-      display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-      gap: 16px;
+    .title{
+      font-size:1.4rem;
+      font-weight:800;
+      letter-spacing:.02em;
     }
 
-    @media (max-width: 800px) {
-      main {
-        grid-template-columns: minmax(0, 1fr);
-      }
+    .date-pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      background:rgba(15, 23, 42, .7);
+      border:1px solid var(--border);
+      padding:10px 12px;
+      border-radius:14px;
     }
 
-    section {
-      background: #020617;
-      border-radius: 12px;
-      padding: 12px 14px;
-      border: 1px solid #1f2937;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
-      margin-bottom: 8px;
+    input[type="date"]{
+      appearance:none;
+      background:transparent;
+      border:none;
+      color:var(--text);
+      font-size:.95rem;
+      outline:none;
     }
 
-    section h2 {
-      font-size: 1.1rem;
-      margin-top: 0;
-      margin-bottom: 8px;
+    .section{
+      background:rgba(15, 23, 42, .65);
+      border:1px solid rgba(36, 48, 67, .85);
+      border-radius:18px;
+      padding:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(8px);
+      margin-bottom:12px;
     }
 
-    form label {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 0.85rem;
-      margin-bottom: 8px;
+    .label{
+      font-size:.85rem;
+      color:var(--muted);
+      margin:0 0 8px;
     }
 
-    input[type="date"],
-    input[type="number"],
-    input[type="text"],
-    select {
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: inherit;
-      font-size: 0.9rem;
+    /* 部位チップ */
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
     }
 
-    select option {
-      background-color: #020617;
-      color: #e5e7eb;
+    .chip{
+      flex:1 0 calc(33.333% - 10px);
+      min-width:92px;
+      text-align:center;
+      padding:12px 10px;
+      border-radius:14px;
+      background:rgba(17, 26, 46, .6);
+      border:1px solid rgba(36,48,67,.9);
+      color:var(--text);
+      cursor:pointer;
+      user-select:none;
+      font-weight:700;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
     }
 
-    input::placeholder {
-      color: #6b7280;
+    .chip.active{
+      background:rgba(34,197,94,.18);
+      border:1px solid rgba(34,197,94,.75);
+      color:var(--text);
     }
 
-    .date-row {
-      display: flex;
-      gap: 8px;
-      align-items: flex-end;
-      margin-bottom: 8px;
+    /* 入力 */
+    select,input[type="number"],input[type="text"],textarea{
+      width:100%;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.65);
+      color:var(--text);
+      outline:none;
+      font-size:1rem;
     }
 
-    .date-row label {
-      flex: 1;
-      margin-bottom: 0;
+    textarea{min-height:44px; resize:vertical}
+
+    .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+    /* セット +/- */
+    .set-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .set-ctrl{
+      display:flex;
+      align-items:center;
+      gap:10px;
     }
 
-    .custom-ex-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-top: 6px;
+    .icon-btn{
+      width:44px;
+      height:44px;
+      border-radius:999px;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.65);
+      color:var(--text);
+      cursor:pointer;
+      font-size:1.2rem;
+      font-weight:900;
     }
 
-    .custom-ex-input {
-      flex: 1;
+    .icon-btn.primary{
+      background:rgba(34,197,94,.9);
+      color:var(--accentText);
+      border:none;
     }
 
-    .body-part-row {
-      margin: 8px 0;
+    .set-no{
+      font-size:1.15rem;
+      font-weight:900;
+      min-width:22px;
+      text-align:center;
     }
 
-    .body-part-label {
-      display: block;
-      font-size: 0.85rem;
-      margin-bottom: 4px;
+    /* RPE ボタン */
+    .rpe-grid{
+      display:grid;
+      grid-template-columns:repeat(5, 1fr);
+      gap:8px;
+      margin-top:6px;
     }
 
-    .body-part-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    .rpe-btn{
+      padding:10px 0;
+      border-radius:12px;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.65);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
     }
 
-    .body-part-btn {
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 0.8rem;
-      cursor: pointer;
+    .rpe-btn.active{
+      background:rgba(34,197,94,.9);
+      color:var(--accentText);
+      border:none;
     }
 
-    .body-part-btn.active {
-      background: #22c55e;
-      border-color: #22c55e;
-      color: #022c22;
+    .rpe-actions{
+      display:flex;
+      justify-content:flex-end;
+      margin-top:8px;
     }
 
-    button[type="submit"] {
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: none;
-      font-size: 0.95rem;
-      font-weight: 600;
-      background: #22c55e;
-      color: #022c22;
-      cursor: pointer;
-      transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, background 0.1s ease-out;
+    .link-btn{
+      border:none;
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-weight:700;
+      padding:4px 6px;
     }
 
-    button[type="submit"]:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 18px rgba(34, 197, 94, 0.35);
-      background: #4ade80;
+    /* 折りたたみ */
+    details{
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.45);
+      border-radius:14px;
+      padding:10px 12px;
     }
 
-    button[type="submit"]:active {
-      transform: translateY(0);
-      box-shadow: none;
+    details summary{
+      cursor:pointer;
+      list-style:none;
+      font-weight:800;
+      color:var(--text);
     }
 
-    .btn-secondary {
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 0.8rem;
-      cursor: pointer;
-      white-space: nowrap;
+    details summary::-webkit-details-marker{display:none}
+
+    .subgrid{display:grid; gap:10px; margin-top:10px;}
+
+    /* ボタン */
+    .primary-btn{
+      width:100%;
+      padding:14px 16px;
+      border-radius:16px;
+      background:rgba(34,197,94,.92);
+      color:var(--accentText);
+      border:none;
+      font-size:1.05rem;
+      font-weight:1000;
+      cursor:pointer;
+      margin-top:12px;
+      box-shadow:0 10px 22px rgba(34,197,94,.18);
     }
 
-    .btn-secondary:hover {
-      background: #0b1120;
+    .ghost-btn{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.45);
+      color:var(--text);
+      cursor:pointer;
+      font-weight:800;
     }
 
-    .button-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
+    /* 履歴 */
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
 
-    .button-row button[type="submit"] {
-      flex: 1;
+    .card{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px;
+      border-radius:18px;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.55);
+      cursor:pointer;
     }
 
-    .hint {
-      font-size: 0.8rem;
-      color: #9ca3af;
-      margin-top: 4px;
+    .card-left{display:flex; align-items:center; gap:12px; min-width:0;}
+
+    .cal{
+      width:44px;height:44px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      background:rgba(34,197,94,.12);
+      border:1px solid rgba(34,197,94,.5);
+      color:rgba(34,197,94,1);
+      font-weight:1000;
     }
 
-    #log-list {
-      list-style: none;
-      padding-left: 0;
-      margin: 0;
-      max-height: 320px;
-      overflow-y: auto;
-      font-size: 0.85rem;
+    .card-title{
+      font-weight:1000;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
-    #log-list li {
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid #111827;
-      background: #020617;
-      margin-bottom: 4px;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
+    .card-sub{
+      font-size:.85rem;
+      color:var(--muted);
+      margin-top:2px;
     }
 
-    #log-list li:hover {
-      background: #0b1120;
+    .chev{color:var(--muted); font-weight:1000;}
+
+    .toolbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
     }
 
-    .log-main-text {
-      flex: 1;
+    .toolbar .right{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+
+    /* 詳細 */
+    .back{
+      color:var(--muted);
+      cursor:pointer;
+      font-weight:900;
+      user-select:none;
     }
 
-    .log-delete-hint {
-      font-size: 0.7rem;
-      color: #6b7280;
-      white-space: nowrap;
+    .pill{
+      display:inline-flex;
+      gap:6px;
+      align-items:center;
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.45);
+      border-radius:999px;
+      padding:8px 10px;
+      color:var(--muted);
+      font-weight:800;
+      font-size:.85rem;
     }
 
-    .chart-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      margin-bottom: 6px;
-      font-size: 0.85rem;
+    .exercise-card{
+      border:1px solid rgba(36,48,67,.9);
+      background:rgba(11,16,32,.55);
+      border-radius:18px;
+      padding:12px;
+      margin-bottom:10px;
     }
 
-    .chart-controls select {
-      min-width: 140px;
+    .exercise-head{
+      font-weight:1000;
+      margin-bottom:8px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
     }
 
-    canvas {
-      background: #020617;
-      border-radius: 8px;
-      border: 1px solid #111827;
+    .set-row-view{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 0;
+      border-top:1px solid rgba(36,48,67,.7);
     }
 
-    #stats p {
-      margin: 4px 0;
-      font-size: 0.9rem;
+    .set-row-view:first-of-type{border-top:none}
+
+    .set-left{color:var(--muted); font-weight:900; min-width:64px}
+    .set-mid{font-weight:1000}
+    .set-right{color:rgba(34,197,94,1); font-weight:1000}
+
+    /* 下ナビ */
+    .nav{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      background:rgba(6, 10, 20, .75);
+      border-top:1px solid rgba(36,48,67,.7);
+      backdrop-filter: blur(10px);
+      padding:10px 14px;
     }
 
-    #history h3 {
-      margin-bottom: 4px;
-      margin-top: 8px;
-      font-size: 0.95rem;
+    .nav-inner{
+      max-width:720px;
+      margin:0 auto;
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
     }
 
-    #history ul {
-      margin: 0 0 4px 1rem;
-      padding-left: 0;
-      font-size: 0.85rem;
+    .nav-btn{
+      flex:1;
+      border:none;
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-weight:900;
+      padding:10px 8px;
+      border-radius:14px;
     }
 
-    #history li {
-      margin-bottom: 2px;
+    .nav-btn.active{
+      color:rgba(34,197,94,1);
+      background:rgba(34,197,94,.10);
+      border:1px solid rgba(34,197,94,.35);
     }
 
-    #history p {
-      margin: 0 0 4px;
-      font-size: 0.8rem;
-      color: #9ca3af;
-    }
+    /* ヘルプ */
+    .hint{color:var(--muted); font-size:.9rem; margin:8px 0 0}
 
-    #date-session-summary {
-      font-size: 0.85rem;
-      margin-top: 4px;
-    }
-
-    #date-session-summary h3 {
-      font-size: 0.95rem;
-      margin: 8px 0 4px;
-    }
-
-    #date-session-summary ul {
-      margin: 0 0 4px 1rem;
-      padding-left: 0;
-      font-size: 0.85rem;
-    }
-
-    #date-session-summary li {
-      margin-bottom: 2px;
-    }
-
-    /* 筋トレ／有酸素の切り替え用 */
-    .strength-field {
-    }
-
-    #cardio-fields {
-      display: none;
-    }
-
-    .cardio-row {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: 6px;
-    }
-
-    .cardio-row label {
-      font-size: 0.8rem;
+    /* 小さめ画面 */
+    @media (max-width:420px){
+      .chip{flex:1 0 calc(50% - 10px)}
+      .rpe-grid{grid-template-columns:repeat(4, 1fr)}
     }
   </style>
 </head>
+
 <body>
+<div class="app">
   <div class="container">
-    <header>
-      <h1>トレーニングログ</h1>
-    </header>
 
-    <main>
-      <!-- 左カラム：入力フォーム + 種目別履歴 + グラフ -->
-      <div>
-        <section>
-          <h2>入力フォーム</h2>
-          <form id="log-form">
-            <label>
-              日付・体重
-              <div class="date-row">
-                <input type="date" id="date" />
-                <button type="button" id="today-btn" class="btn-secondary">今日</button>
-                <input
-                  type="number"
-                  id="bodyWeight"
-                  inputmode="decimal"
-                  step="0.1"
-                  placeholder="体重 (kg)"
-                />
-              </div>
-            </label>
+    <!-- 記録ページ -->
+    <div id="page-record">
+      <div class="topbar">
+        <div class="title">トレーニング記録</div>
+        <div class="date-pill">
+          <span style="opacity:.9">📅</span>
+          <input type="date" id="date" />
+        </div>
+      </div>
 
-            <div class="body-part-row">
-              <span class="body-part-label">部位</span>
-              <div class="body-part-buttons">
-                <button type="button" class="body-part-btn active" data-body-part="胸">胸</button>
-                <button type="button" class="body-part-btn" data-body-part="肩">肩</button>
-                <button type="button" class="body-part-btn" data-body-part="背中">背中</button>
-                <button type="button" class="body-part-btn" data-body-part="脚・下半身">脚・下半身</button>
-                <button type="button" class="body-part-btn" data-body-part="腕">腕</button>
-                <button type="button" class="body-part-btn" data-body-part="腹">腹</button>
-                <button type="button" class="body-part-btn" data-body-part="有酸素">有酸素</button>
-                <button type="button" class="body-part-btn" data-body-part="その他">その他</button>
-              </div>
-            </div>
+      <div class="section">
+        <div class="label">部位を選択</div>
+        <div class="chips" id="part-chips"></div>
+      </div>
 
-            <label>
-              種目
-              <select id="exercise">
-                <option value="">選択してください</option>
-                <optgroup id="custom-ex-group" label="カスタム"></optgroup>
-              </select>
-              <div class="custom-ex-row">
-                <input
-                  type="text"
-                  id="custom-ex-input"
-                  class="custom-ex-input"
-                  placeholder="新しい種目名を入力"
-                />
-                <button type="button" id="add-custom-ex-btn" class="btn-secondary">
-                  種目を追加
-                </button>
-              </div>
-            </label>
+      <div class="section">
+        <div class="label">種目選択</div>
+        <select id="exercise-select"></select>
+      </div>
 
-            <div class="strength-field">
-              <label>
-                セット番号
-                <input type="number" id="setNo" min="1" value="1" />
-              </label>
-
-              <label>
-                重量 (kg)
-                <input type="number" id="weight" inputmode="decimal" step="0.1" />
-              </label>
-
-              <label>
-                回数
-                <input type="number" id="reps" inputmode="numeric" />
-              </label>
-
-              <label>
-                RPE
-                <input type="number" id="rpe" step="0.5" min="5" max="10" />
-              </label>
-            </div>
-
-            <div id="cardio-fields" class="cardio-row">
-              <label>
-                距離 (km)
-                <input
-                  type="number"
-                  id="cardio-distance"
-                  inputmode="decimal"
-                  step="0.01"
-                />
-              </label>
-              <label>
-                時間 (分)
-                <input
-                  type="number"
-                  id="cardio-duration"
-                  inputmode="numeric"
-                  step="1"
-                />
-              </label>
-              <label>
-                速さ (分/km)
-                <input
-                  type="number"
-                  id="cardio-speed"
-                  inputmode="decimal"
-                  step="0.1"
-                />
-              </label>
-            </div>
-
-            <label>
-              メモ
-              <input
-                type="text"
-                id="memo"
-                placeholder="フォーム・体調・補助あり / コースなど"
-              />
-            </label>
-
-            <div class="button-row">
-              <button type="submit">このセットを追加</button>
-              <button type="button" id="copy-first-set-btn" class="btn-secondary">
-                1セット目をコピー
-              </button>
-            </div>
-            <p class="hint">
-              ※ 同じ日・同じ種目のときは、1セット目を登録後「1セット目をコピー」で 2〜4 セット目を素早く追加できます。
-            </p>
-          </form>
-        </section>
-
-        <section>
-          <h2>種目別履歴（最近 3 回のトレーニング日）</h2>
-          <div id="history">種目を選択すると履歴が表示されます。</div>
-        </section>
-
-        <section>
-          <h2>推定 1RM グラフ</h2>
-          <div class="chart-controls">
-            <label>
-              種目：
-              <select id="exercise-select">
-                <option value="">記録がある種目から選択</option>
-              </select>
-            </label>
-
-            <label>
-              期間：
-              <select id="range-select">
-                <option value="all">全期間</option>
-                <option value="30">直近 30 日</option>
-                <option value="90">直近 90 日</option>
-              </select>
-            </label>
+      <div class="section">
+        <div class="set-row">
+          <div class="label" style="margin:0">セット</div>
+          <div class="set-ctrl">
+            <button class="icon-btn" type="button" id="set-minus">−</button>
+            <div class="set-no" id="set-no">1</div>
+            <button class="icon-btn primary" type="button" id="set-plus">＋</button>
           </div>
-
-          <canvas id="rmChart" height="200"></canvas>
-        </section>
+        </div>
       </div>
 
-      <!-- 右カラム：トレ日別一覧 + 統計 + 記録一覧 -->
-      <div>
-        <section>
-          <h2>トレーニング日別一覧</h2>
-          <p class="hint">前回のトレーニング日などを選ぶと、その日に行った全種目とセットが表示されます。</p>
-          <label>
-            トレーニング日：
-            <select id="date-session-select">
-              <option value="">日付を選択</option>
-            </select>
-          </label>
-          <div id="date-session-summary"></div>
-        </section>
+      <!-- 筋トレ入力 -->
+      <div class="section" id="strength-fields">
+        <div class="row2">
+          <div>
+            <div class="label">重量(kg)</div>
+            <input type="number" id="weight" inputmode="decimal" />
+          </div>
+          <div>
+            <div class="label">回数</div>
+            <input type="number" id="reps" inputmode="numeric" />
+          </div>
+        </div>
 
-        <section>
-          <h2>統計</h2>
-          <div id="stats">種目を選択すると統計が表示されます。</div>
-        </section>
-
-        <section>
-          <h2>記録一覧</h2>
-          <p class="hint">※ 一覧の行をクリックすると、その記録を削除できます。</p>
-          <ul id="log-list"></ul>
-        </section>
+        <div style="margin-top:12px">
+          <div class="label" style="margin:0">RPE（きつさ）</div>
+          <div class="rpe-grid" id="rpe-grid"></div>
+          <div class="rpe-actions">
+            <button type="button" class="link-btn" id="rpe-clear">クリア</button>
+          </div>
+        </div>
       </div>
-    </main>
+
+      <!-- 有酸素入力 -->
+      <div class="section" id="cardio-fields" style="display:none">
+        <div class="row2">
+          <div>
+            <div class="label">距離(km)</div>
+            <input type="number" id="distance" inputmode="decimal" />
+          </div>
+          <div>
+            <div class="label">時間(分)</div>
+            <input type="number" id="duration" inputmode="numeric" />
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <div class="label">速さ（任意：km/h または 分/km）</div>
+          <input type="text" id="speed" placeholder="例：11.4km/h  または  6:00/km" />
+        </div>
+      </div>
+
+      <div class="section">
+        <details>
+          <summary>追加項目（体重・メモ）</summary>
+          <div class="subgrid">
+            <div>
+              <div class="label">体重(kg)</div>
+              <input type="number" id="bodyWeight" inputmode="decimal" />
+            </div>
+            <div>
+              <div class="label">メモ</div>
+              <textarea id="memo" placeholder="フォーム・体調・補助など"></textarea>
+            </div>
+          </div>
+        </details>
+
+        <button class="primary-btn" type="button" id="save-btn">記録する</button>
+        <div class="hint" id="save-hint"></div>
+      </div>
+
+      <div class="section" id="recent-box" style="display:none">
+        <div class="label">昔の記録（同一種目の直近）</div>
+        <div id="recent-list"></div>
+      </div>
+
+    </div>
+
+    <!-- 履歴ページ -->
+    <div id="page-history" style="display:none">
+      <div class="toolbar">
+        <div class="title">履歴</div>
+        <div class="right">
+          <button class="ghost-btn" type="button" id="csv-export">CSV出力</button>
+        </div>
+      </div>
+      <div class="list" id="history-list"></div>
+    </div>
+
+    <!-- 履歴詳細ページ -->
+    <div id="page-history-detail" style="display:none">
+      <div class="toolbar">
+        <div class="back" id="detail-back">← 戻る</div>
+        <div class="right">
+          <button class="ghost-btn" type="button" id="detail-copy">テキストコピー</button>
+        </div>
+      </div>
+      <div class="title" id="detail-title" style="margin:6px 0 10px"></div>
+      <div id="detail-body"></div>
+    </div>
+
+    <!-- 分析ページ -->
+    <div id="page-analysis" style="display:none">
+      <div class="toolbar">
+        <div class="title">分析</div>
+        <div class="right">
+          <select id="analysis-exercise" style="min-width:200px"></select>
+        </div>
+      </div>
+
+      <div class="section">
+        <canvas id="rmChart" height="160"></canvas>
+        <div class="hint" id="analysis-hint">種目を選ぶと推定1RMの推移と直近履歴が見られます。</div>
+      </div>
+
+      <div class="section">
+        <div class="label">直近の履歴</div>
+        <div id="analysis-history"></div>
+      </div>
+    </div>
+
+    <!-- 設定ページ -->
+    <div id="page-settings" style="display:none">
+      <div class="toolbar">
+        <div class="title">設定</div>
+        <div class="right">
+          <button class="ghost-btn" type="button" id="add-exercise-btn">＋ 種目追加</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">CSVインポート</div>
+        <input type="file" id="csv-import" accept=".csv" />
+        <div class="hint">過去ログをCSVから取り込めます（ヘッダ付き推奨）。</div>
+      </div>
+
+      <div class="section">
+        <div class="label">種目一覧</div>
+        <div id="exercise-master"></div>
+      </div>
+
+      <!-- 種目追加モーダル -->
+      <div id="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);">
+        <div style="max-width:520px; margin:12vh auto 0; padding:0 16px;">
+          <div class="section" style="margin:0">
+            <div class="toolbar" style="margin:0 0 8px">
+              <div style="font-weight:1000">新しい種目を追加</div>
+              <button type="button" class="link-btn" id="modal-close">✕</button>
+            </div>
+
+            <div style="display:grid; gap:10px">
+              <div>
+                <div class="label">種目名</div>
+                <input type="text" id="new-ex-name" placeholder="例：ダンベルベンチプレス" />
+              </div>
+              <div>
+                <div class="label">部位</div>
+                <select id="new-ex-part"></select>
+              </div>
+              <div>
+                <div class="label">タイプ</div>
+                <select id="new-ex-type">
+                  <option value="筋トレ">筋トレ</option>
+                  <option value="有酸素">有酸素</option>
+                </select>
+              </div>
+
+              <button class="primary-btn" type="button" id="modal-add">追加する</button>
+              <div class="hint" id="modal-hint"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 
-  <!-- グラフ用ライブラリ Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- アプリ本体 -->
-  <script type="module" src="./app.js"></script>
+  <!-- 下ナビ -->
+  <div class="nav">
+    <div class="nav-inner">
+      <button class="nav-btn active" data-page="record" type="button">記録</button>
+      <button class="nav-btn" data-page="history" type="button">履歴</button>
+      <button class="nav-btn" data-page="analysis" type="button">分析</button>
+      <button class="nav-btn" data-page="settings" type="button">設定</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
